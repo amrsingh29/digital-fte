@@ -382,6 +382,10 @@
       <p class="note">Rules: ${fmtH(t.rules.h)} · K ${t.rules.k.toFixed(2)} · ${esc(why(t.evidence))}</p>
       <p class="note">K: ${esc(t.k_basis)}${t.learned ? ` · learned factor ×${t.learned} for ${esc(t.category)}` : ""}</p>
       <form class="fix" data-id="${esc(t.id)}">
+        <div class="sizes" role="group" aria-label="Pick a size">
+          <span class="note">How long without AI?</span>
+          ${SIZES.map(([k, h, l]) => `<button type="button" class="chip size" data-h="${h}" title="${esc(l)} · ${h} h">${k}</button>`).join("")}
+        </div>
         <label>Hours a person would need <input name="h" type="number" min="0" step="any" value="${c.h ?? t.h}"></label>
         <label>Keep factor <input name="k" type="number" min="0" max="1" step="any" value="${c.k ?? t.k}"></label>
         <label>Purpose <select name="purpose">${Object.entries(data.purposes).map(([k, l]) => `<option value="${k}"${k === t.purpose ? " selected" : ""}>${esc(l)}</option>`).join("")}</select></label>
@@ -394,6 +398,10 @@
         </div>
       </form></div></td></tr>`;
   }
+
+  // Sizes are easier to judge than hours; each fills in the hours field.
+  const SIZES = [["XS", 0.5, "under an hour"], ["S", 2, "a couple of hours"], ["M", 6, "half a day to a day"],
+                 ["L", 20, "2–3 days"], ["XL", 35, "about a week"], ["XXL", 70, "2 weeks"], ["Month", 140, "a month"]];
 
   async function saveFix(form) {
     const f = new FormData(form), id = form.dataset.id, t = data.tasks.find((x) => x.id === id);
@@ -538,6 +546,13 @@
   }
   $("#more").addEventListener("click", () => { S.showAll = !S.showAll; renderTable(); });
   $("#task-rows").addEventListener("click", (e) => {
+    const size = e.target.closest(".size");
+    if (size) {
+      const form = size.closest(".editor").querySelector("form");
+      form.elements.h.value = size.dataset.h;
+      size.parentElement.querySelectorAll(".size").forEach((b) => b.setAttribute("aria-pressed", b === size));
+      return;
+    }
     const act = e.target.closest("[data-act]");
     if (act) {
       const id = act.closest("form").dataset.id;

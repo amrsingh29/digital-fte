@@ -207,3 +207,6 @@ footer{margin-top:48px;text-align:center;font-family:var(--mono);font-size:12px;
 .tipbox{position:absolute;z-index:5;margin:8px 0 0;width:min(46ch,100%);font-size:13px;line-height:1.5;color:var(--fg);
   background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:8px 11px;box-shadow:0 6px 20px rgba(0,0,0,.08);text-align:left}
 @media (max-width:860px){.tipbox{left:50%;transform:translateX(-50%)}}
+.sizes{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:12px 0 0}
+.sizes .note{margin-right:4px}
+.chip.size{font-family:var(--mono);font-size:12px}
