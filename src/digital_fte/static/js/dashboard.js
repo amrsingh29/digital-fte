@@ -33,19 +33,47 @@
     })(t0);
   }
 
-  function bars(el, rows, fmt, onClick) {
-    const max = Math.max(0.001, ...rows.map((r) => r.v));
-    el.innerHTML = rows.map((r) => `
-      <${onClick ? "button type=button" : "div"} class="bar${r.on ? " on" : ""}${r.off ? " off" : ""}" data-id="${esc(r.id)}">
-        <span class="n">${r.dot || ""}${esc(r.name)}</span>
+  function barRows(rows, fmt, max, clickable) {
+    return rows.map((r) => `
+      <${clickable ? "button type=button" : "div"} class="bar${r.on ? " on" : ""}${r.off ? " off" : ""}${r.other ? " other" : ""}" data-id="${esc(r.id)}">
+        <span class="n" title="${esc(r.name)}">${r.dot || ""}${esc(r.name)}</span>
         <span class="t"><i style="width:${r.off ? 0 : (r.v / max) * 100}%;${r.color ? `background:var(${r.color})` : ""}"></i></span>
         <span class="v">${r.off ? esc(r.off) : fmt(r.v)}</span>
-      </${onClick ? "button" : "div"}>`).join("") || `<div class="note">Nothing this month.</div>`;
+      </${clickable ? "button" : "div"}>`).join("");
+  }
+
+  function bars(el, rows, fmt, onClick) {
+    const max = Math.max(0.001, ...rows.map((r) => r.v));
+    el.innerHTML = barRows(rows, fmt, max, !!onClick) || `<div class="note">Nothing this month.</div>`;
     if (onClick) el.querySelectorAll(".bar").forEach((b) => b.addEventListener("click", () => onClick(b.dataset.id)));
   }
 
+  // By project: the top 8 projects, the rest rolled into "Other", and the groups that
+  // aren't projects (learning, setup, unassigned) kept apart below a divider.
+  const PROJECT_LIMIT = 8;
+  function projectBars(el, rows, fmt) {
+    const pinnedNames = [...Object.values(data.purposes).filter((n) => n !== "Project work"), "Unassigned", "(no project)"];
+    const pinned = pinnedNames.map((n) => rows.find((r) => r.name === n)).filter(Boolean);
+    const projects = rows.filter((r) => !pinnedNames.includes(r.name));
+    const shows = (r) => fmt(r.v) !== fmt(0);           // hide rows that round to zero
+    const top = S.allProjects ? projects : projects.filter(shows).slice(0, PROJECT_LIMIT);
+    const rest = projects.filter((r) => !top.includes(r));
+    const shown = [...top];
+    if (rest.length) {
+      shown.push({ id: "__other", name: `Other (${rest.length} project${rest.length === 1 ? "" : "s"})`, other: true,
+                   v: rest.reduce((t, r) => t + r.v, 0) });
+    }
+    const max = Math.max(0.001, ...shown.map((r) => r.v), ...pinned.map((r) => r.v));
+    const toggle = projects.length > PROJECT_LIMIT || projects.some((r) => !shows(r))
+      ? `<button type="button" class="linkish more-projects">${S.allProjects ? "Show fewer" : `Show all ${projects.length}`}</button>` : "";
+    el.innerHTML = (barRows(shown, fmt, max, false) || `<div class="note">No project work this month.</div>`) + toggle +
+      (pinned.length ? `<div class="bar-divider"></div>` + barRows(pinned, fmt, max, false) : "");
+    const t = el.querySelector(".more-projects");
+    if (t) t.addEventListener("click", () => { S.allProjects = !S.allProjects; projectBars(el, rows, fmt); });
+  }
+
   /* ---------- state ---------- */
-  const S = { view: store.get("view", "dfte"), editing: null, month: null, agent: null, cat: null, showAll: false, mode: store.get("mode", "mono") };
+  const S = { view: store.get("view", "dfte"), editing: null, allProjects: false, month: null, agent: null, cat: null, showAll: false, mode: store.get("mode", "mono") };
   let data = null, AG = {}, enabled = {};
 
   const pickAgent = (id) => { if (!enabled[id]) return; S.agent = S.agent === id ? null : id; S.showAll = false; render(); };
@@ -108,7 +136,7 @@
     projectBars() {
       const by = {};
       REAL.items(S.month).forEach((s) => (by[s.project] = (by[s.project] || 0) + s.actions));
-      return Object.entries(by).sort((a, b) => b[1] - a[1]).slice(0, 10).map(([p, v]) => ({ id: p, name: p, v }));
+      return Object.entries(by).sort((a, b) => b[1] - a[1]).map(([p, v]) => ({ id: p, name: p, v }));
     },
     fmtBar: int,
     table() {
@@ -445,7 +473,7 @@
     $("#legend").innerHTML = view.legend();
     renderChart();
     bars($("#by-agent"), view.agentBars(), view.fmtBar, pickAgent);
-    bars($("#by-project"), view.projectBars(), view.fmtBar);
+    projectBars($("#by-project"), view.projectBars(), view.fmtBar);
     renderTable();
     renderAgents();
     const o = view.orbit();

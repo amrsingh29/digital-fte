@@ -49,6 +49,8 @@ def purpose_of(ev: dict, files: list[str], project: str, prompts_text: str) -> s
     config_file = lambda f: f.startswith(HOME + "/.") or "/Library/LaunchAgents/" in f or "/Library/Application Support/" in f
     if files and all(config_file(f) for f in files):
         return "admin"
+    if project.endswith(" config") and all(config_file(f) for f in files):
+        return "admin"   # work inside a tool's own config folder (~/.claude, ~/.cursor…)
     if not ev["edits"]:
         if _ADMIN_WORDS.search(prompts_text) and ev["commands"]:
             return "admin"
