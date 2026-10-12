@@ -103,7 +103,9 @@
   }
 
   /* ---------- state ---------- */
-  const S = { view: store.get("view", "dfte"), editing: null, allProjects: false, tip: null, month: null, agent: null, cat: null, showAll: false, mode: store.get("mode", "mono") };
+  // ?task=<id> opens one task straight away (handy to bookmark or send to yourself).
+  const linkedTask = new URLSearchParams(location.search).get("task");
+  const S = { view: store.get("view", "dfte"), editing: null, allProjects: false, tip: null, focusTask: linkedTask, month: null, agent: null, cat: null, showAll: false, mode: store.get("mode", "mono") };
   let data = null, AG = {}, enabled = {};
 
   const pickAgent = (id) => { if (!enabled[id]) return; S.agent = S.agent === id ? null : id; S.showAll = false; render(); };
@@ -304,7 +306,8 @@
     },
     fmtBar: (v) => v.toFixed(2),
     table() {
-      const ts = DFTE.items(S.month, { byCat: true }).sort((a, b) => b.date.localeCompare(a.date) || net(b) - net(a));
+      let ts = DFTE.items(S.month, { byCat: true }).sort((a, b) => b.date.localeCompare(a.date) || net(b) - net(a));
+      if (S.focusTask) ts = data.tasks.filter((t) => t.id === S.focusTask);
       return {
         title: "Tasks", chips: Object.entries(data.purposes), total: ts.length,
         note: "Click a task to see why it got its estimate, or to correct it.",
@@ -531,10 +534,19 @@
     $("#cats").innerHTML = t.chips.length ? [["", "All"], ...t.chips.map((c) => (Array.isArray(c) ? c : [c, c]))].map(([v, l]) =>
       `<button type="button" class="chip" data-cat="${v}" aria-pressed="${(S.cat || "") === v}">${l}</button>`).join("") : "";
     $("#cats").querySelectorAll(".chip").forEach((b) => b.addEventListener("click", () => { S.cat = b.dataset.cat || null; S.showAll = false; renderTable(); }));
-    $("#more").hidden = t.total <= 12;
-    $("#more").textContent = S.showAll ? "Show fewer" : `Show all ${t.total}`;
+    const focused = S.focusTask && V() === DFTE;
+    $("#more").hidden = !focused && t.total <= 12;
+    $("#more").textContent = focused ? "Show all tasks" : S.showAll ? "Show fewer" : `Show all ${t.total}`;
   }
-  $("#more").addEventListener("click", () => { S.showAll = !S.showAll; renderTable(); });
+  $("#more").addEventListener("click", () => {
+    if (S.focusTask) {
+      S.focusTask = null; S.editing = null;
+      history.replaceState(null, "", location.pathname);
+    } else {
+      S.showAll = !S.showAll;
+    }
+    renderTable();
+  });
   $("#task-rows").addEventListener("click", (e) => {
     const size = e.target.closest(".size");
     if (size) {
@@ -589,12 +601,19 @@
     enabled = Object.fromEntries(data.agents.map((g) => [g.id, g.enabled]));
     renderFormula();
     if (S.agent && !enabled[S.agent]) S.agent = null;
+    const linked = S.focusTask && data.tasks.find((t) => t.id === S.focusTask);
+    if (S.focusTask && !linked) S.focusTask = null;
+    if (linked && !S.opened) {           // first load only: go to the task's month and open it
+      S.opened = true;
+      S.view = "dfte"; S.month = linked.date.slice(0, 7); S.editing = linked.id;
+    }
     if (!data.months.includes(S.month)) S.month = data.months.at(-1);
     $("#month").innerHTML = data.months.slice().reverse().map((m) => `<option value="${m}">${monthName(m)}</option>`).join("");
     $("#month").value = S.month;
     document.querySelectorAll(".seg button").forEach((b) => b.setAttribute("aria-pressed", b.dataset.view === S.view));
     if (!data.months.length) { $("#banner").textContent = "No sessions found yet. Check the agent paths in Settings, then Rescan."; renderAgents(); return; }
     render(animate);
+    if (linked && !load.scrolled) { load.scrolled = true; $("#task-rows").scrollIntoView({ block: "start" }); }
     renderAI();
     renderSchedule();
     // Keep the page live while a scan or AI run is going, but never while you're editing a task.

@@ -210,3 +210,4 @@ footer{margin-top:48px;text-align:center;font-family:var(--mono);font-size:12px;
 .sizes{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:12px 0 0}
 .sizes .note{margin-right:4px}
 .chip.size{font-family:var(--mono);font-size:12px}
+.fix select{width:auto;min-width:9em}

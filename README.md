@@ -81,7 +81,8 @@ flowchart LR
    task and decides its purpose.
 5. **Your corrections win.** Click any task to change its hours, keep factor,
    category or purpose. After three corrections in a category, the app applies
-   your pattern to the rest of that category.
+   your pattern to the rest of that category
+   ([how to review](docs/reviewing-tasks.md)).
 6. **Show it.** The dashboard adds everything up per month.
 
 ---
@@ -348,9 +349,11 @@ want them gone.
 
 - **Click an agent** in the orbit, or in "By agent", to filter the whole page.
 - **Pick a month** at the top right, or click a point on the trend chart.
-- **Click a task** to see why it got its estimate, and correct its hours, keep
-  factor, category or purpose. You can also mark it *not real work*.
-  **Reset to estimate** undoes your change.
+- **Click a task** to see why it got its estimate, and correct it: pick a size
+  (XS to Month) or type the hours, and set the keep factor, category or purpose.
+  You can also mark it *not real work*. **Reset to estimate** undoes your change.
+  See **[Reviewing and correcting tasks](docs/reviewing-tasks.md)** for every
+  option, how the app learns from your corrections, and a 10-minute weekly routine.
 - **Rescan** reads new history straight away.
 - **Settings** (at the bottom) holds the agent switches, the active AI service,
   the refresh schedule and the link to the summary page.
