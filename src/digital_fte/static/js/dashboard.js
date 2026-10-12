@@ -324,17 +324,6 @@
       };
     },
     agentsNote: () => REAL.agentsNote(),
-    orbit() {
-      const all = DFTE.items(S.month, { byAgent: false }), total = DFTE.agg(all);
-      return {
-        level: Math.min(1, total.dfte / 4),
-        agents: data.agents.filter((g) => enabled[g.id]).map((g) => {
-          const mine = all.filter((t) => t.agent === g.id);
-          return { id: g.id, name: g.name, color: `--a-${g.id}`, share: total.net ? DFTE.agg(mine).net / total.net : 0,
-            active: isLatest() && mine.some((t) => t.ended > data.now - 3600) };
-        }),
-      };
-    },
     toggle: (id) => REAL.toggle(id),
     rescan: () => REAL.rescan(),
   };
@@ -527,7 +516,8 @@
     projectBars($("#by-project"), view.projectBars(), view.fmtBar);
     renderTable();
     renderAgents();
-    const o = view.orbit();
+    // One globe for both views: sized by the month's agent activity, so it doesn't jump when you switch.
+    const o = REAL.orbit();
     orbit.setData(o.level, o.agents);
     orbit.select(S.agent, false);
   }
