@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Digital FTE</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&family=Newsreader:opsz,wght@6..72,400;6..72,500&display=swap">
+<link rel="stylesheet" href="/static/css/app.css?v={{ v }}">
+<script>
+  try { const t = localStorage.getItem("dfte.theme"); if (t) document.documentElement.dataset.theme = t; } catch (e) {}
+</script>
+</head>
+<body>
+<div class="wrap">
+
+  <nav class="top">
+    <div class="mark">digital<span>·</span>fte</div>
+    <div class="controls">
+      <div class="seg" role="group" aria-label="View">
+        <button type="button" data-view="dfte" aria-pressed="true">DFTE</button>
+        <button type="button" data-view="activity" aria-pressed="false">Activity</button>
+      </div>
+      <label class="sel"><span class="sr">Month</span><select id="month"></select></label>
+      <button class="ghost" id="theme" type="button">Dark</button>
+    </div>
+  </nav>
+
+  <p class="banner" id="banner"></p>
+
+  <section class="hero">
+    <div class="stage" id="stage">
+      <canvas id="orbit" aria-hidden="true"></canvas>
+      <div class="pills" id="pills"></div>
+      <div class="mode" role="group" aria-label="Art style">
+        <button type="button" data-mode="mono" aria-pressed="true">Mono</button>
+        <button type="button" data-mode="color" aria-pressed="false">Color</button>
+      </div>
+    </div>
+    <aside class="headline">
+      <div class="eyebrow" id="h-eyebrow">Digital FTE</div>
+      <div class="big"><span id="h-dfte">0.0</span><small id="h-unit">DFTE</small></div>
+      <div class="range" id="h-range"></div>
+      <p class="sentence" id="h-sentence"></p>
+      <div class="filter" id="h-filter" hidden>
+        <span id="h-filter-name"></span>
+        <button type="button" id="h-clear" aria-label="Clear agent filter">×</button>
+      </div>
+      <button class="ghost" id="rescan" type="button">↻ Rescan</button>
+    </aside>
+  </section>
+
+  <section class="metrics" id="metrics"></section>
+
+  <section class="block">
+    <div class="block-head">
+      <h2>Trend</h2>
+      <div class="legend" id="legend"></div>
+    </div>
+    <div id="chart" class="chart"></div>
+  </section>
+
+  <section class="block split">
+    <div>
+      <div class="block-head"><h2>By agent</h2></div>
+      <div class="bars" id="by-agent"></div>
+    </div>
+    <div>
+      <div class="block-head"><h2>By project</h2></div>
+      <div class="bars" id="by-project"></div>
+    </div>
+  </section>
+
+  <section class="block">
+    <div class="block-head">
+      <h2 id="table-title">Tasks</h2>
+      <div class="chips" id="cats"></div>
+    </div>
+    <div class="table-wrap">
+      <table class="tasks">
+        <thead id="task-head"></thead>
+        <tbody id="task-rows"></tbody>
+      </table>
+    </div>
+    <div class="table-foot">
+      <button class="ghost" id="more" type="button"></button>
+      <span class="note" id="table-note"></span>
+    </div>
+  </section>
+
+  <section class="block formula">
+    <div class="block-head"><h2>How it's calculated</h2></div>
+    <pre id="formula"></pre>
+  </section>
+
+  <details class="block settings" id="settings">
+    <summary><h2>Settings</h2><span class="note">which agents count, and which AI estimates tasks</span></summary>
+
+    <div class="sub">
+      <div class="block-head">
+        <h3>Agents</h3>
+        <span class="note" id="agents-note"></span>
+      </div>
+      <div class="agents" id="agents"></div>
+    </div>
+
+    <div class="sub" id="ai">
+      <div class="block-head">
+        <h3>AI estimates</h3>
+        <span class="note" id="ai-note"></span>
+      </div>
+      <div class="agents" id="ai-services"></div>
+      <p class="note" id="ai-more"></p>
+    </div>
+  </details>
+
+  <footer>Runs on this Mac · bound to 127.0.0.1 · transcripts stay here; only short task summaries go to the AI service you pick</footer>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/echarts/5.5.0/echarts.min.js"></script>
+<script src="/static/js/orbit.js?v={{ v }}"></script>
+<script src="/static/js/dashboard.js?v={{ v }}"></script>
+</body>
+</html>
