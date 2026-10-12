@@ -215,7 +215,7 @@
         const focus = this.hover === a.id || this.sel === a.id;
         for (let k = 0; k < 200; k++) {
           const p = this.orbitPoint(i, radii[i], (k / 200) * 6.2832);
-          this.plot(cx + p[0], cy + p[1], p[2], focus ? 0.2 : 0.1, i + 1);
+          this.plot(cx + p[0], cy + p[1], p[2], focus ? 0.3 : 0.18, i + 1);   // ":" reads clearly on light backgrounds; "." was too faint
         }
         if (a.active) {
           const th = this.state[a.id].th;
