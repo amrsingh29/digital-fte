@@ -72,6 +72,9 @@
       const cs = getComputedStyle(document.documentElement);
       const v = (n) => cs.getPropertyValue(n).trim();
       this.colors = { fg: v("--fg"), faint: v("--faint"), core: v("--a-core") };
+      // Dark page? Decides how dense the orbit rings are drawn (dense dots vanish on light, shout on dark).
+      const m = v("--bg").match(/^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})/i);
+      this.dark = m ? (0.299 * parseInt(m[1], 16) + 0.587 * parseInt(m[2], 16) + 0.114 * parseInt(m[3], 16)) / 255 < 0.5 : false;
       this.draw && this.cols && this.draw();
     }
 
@@ -165,7 +168,8 @@
     geometry() {
       const W = this.W, H = this.H;
       const aMax = Math.max(40, Math.min(W / 2 - (W < 500 ? 12 : 30), (H / 2 - 30) / 0.5));
-      const R = Math.min(H * 0.34, aMax * (0.24 + 0.16 * this.coreK));
+      // Core stays well inside the innermost orbit, so agents are hidden behind it only briefly.
+      const R = Math.min(H * 0.28, aMax * (0.15 + 0.13 * this.coreK));
       return { cx: W / 2, cy: H / 2, aMax, R };
     }
 
@@ -215,7 +219,8 @@
         const focus = this.hover === a.id || this.sel === a.id;
         for (let k = 0; k < 200; k++) {
           const p = this.orbitPoint(i, radii[i], (k / 200) * 6.2832);
-          this.plot(cx + p[0], cy + p[1], p[2], focus ? 0.3 : 0.18, i + 1);   // ":" reads clearly on light backgrounds; "." was too faint
+          const ring = this.dark ? (focus ? 0.2 : 0.1) : (focus ? 0.3 : 0.18);   // "." on dark, ":" on light
+          this.plot(cx + p[0], cy + p[1], p[2], ring, i + 1);
         }
         if (a.active) {
           const th = this.state[a.id].th;

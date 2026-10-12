@@ -50,7 +50,7 @@ code{font-family:var(--mono);font-size:.92em}
 .pill .dot{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:6px;vertical-align:1px}
 .pill.live .dot{animation:pulse 1.6s ease-in-out infinite}
 .pill:hover,.pill.hot,.pill.on{background:var(--inv);color:var(--inv-fg)}
-.pill.behind{opacity:.45}
+.pill.behind{opacity:.8}
 @keyframes pulse{50%{opacity:.25}}
 .mode{position:absolute;top:0;right:0;display:flex;background:var(--pill);border-radius:9px;padding:3px;z-index:2}
 .mode button{font-size:12.5px;font-weight:500;padding:3px 10px;border-radius:7px;color:var(--muted)}

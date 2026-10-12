@@ -198,7 +198,8 @@
       const all = REAL.items(S.month, { byAgent: false }), total = REAL.agg(all);
       const latest = S.month === data.months.at(-1);
       return {
-        level: Math.min(1, total.actions / 3000),
+        // Log scale: grows with activity but never saturates (3,000 actions ≈ 0.8, 30,000 = full size).
+        level: Math.min(1, Math.log10(1 + total.actions) / Math.log10(1 + 30000)),
         agents: data.agents.filter((g) => enabled[g.id]).map((g) => {
           const mine = all.filter((s) => s.agent === g.id);
           return {
