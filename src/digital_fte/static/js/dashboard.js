@@ -34,24 +34,34 @@
   }
 
   // Headline detail lines: plain text, or parts that explain themselves on hover, focus or tap.
+  // The explanation floats over the page (no layout shift) and survives the automatic refreshes.
   function explained(el, parts) {
     if (typeof parts === "string") { el.textContent = parts; return; }
-    el.innerHTML = parts.map((p) => `<span class="tip" tabindex="0" data-tip="${esc(p.tip)}">${esc(p.text)}</span>`).join(" · ");
+    el.innerHTML = parts.map((p, i) =>
+      `<span class="tip" tabindex="0" data-key="${el.id}:${i}" data-tip="${esc(p.tip)}">${esc(p.text)}</span>`).join(" · ");
   }
-  function showTip(e) {
-    const t = e.target.closest(".tip");
-    if (!t) return;
-    $("#h-tip").textContent = t.dataset.tip;
-    $("#h-tip").hidden = false;
+  let tipTimer = null;
+  function setTip(key) {
+    clearTimeout(tipTimer);
+    S.tip = key;
+    const t = key && document.querySelector(`.headline .tip[data-key="${key}"]`);
+    if (!t) S.tip = null;
+    $("#h-tip").textContent = t ? t.dataset.tip : "";
+    $("#h-tip").hidden = !t;
     document.querySelectorAll(".headline .tip").forEach((x) => x.classList.toggle("on", x === t));
   }
-  function hideTip(e) {
-    if (e.relatedTarget && e.relatedTarget.closest && e.relatedTarget.closest(".tip")) return;
-    $("#h-tip").hidden = true;
-    document.querySelectorAll(".headline .tip.on").forEach((x) => x.classList.remove("on"));
-  }
-  ["mouseover", "focusin", "click"].forEach((ev) => document.querySelector(".headline").addEventListener(ev, showTip));
-  ["mouseout", "focusout"].forEach((ev) => document.querySelector(".headline").addEventListener(ev, (e) => { if (e.target.closest(".tip")) hideTip(e); }));
+  const tipOf = (e) => e.target.closest && e.target.closest(".headline .tip");
+  const headline = document.querySelector(".headline");
+  headline.addEventListener("mouseover", (e) => { const t = tipOf(e); if (t) setTip(t.dataset.key); });
+  headline.addEventListener("mouseout", (e) => {
+    if (!tipOf(e) || (e.relatedTarget && e.relatedTarget.closest && e.relatedTarget.closest(".headline .tip"))) return;
+    clearTimeout(tipTimer);
+    tipTimer = setTimeout(() => setTip(null), 250);   // grace period for crossing the " · " gap
+  });
+  headline.addEventListener("focusin", (e) => { const t = tipOf(e); if (t) setTip(t.dataset.key); });
+  headline.addEventListener("focusout", (e) => { if (tipOf(e)) setTip(null); });
+  headline.addEventListener("click", (e) => { const t = tipOf(e); if (t) setTip(S.tip === t.dataset.key ? null : t.dataset.key); });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") setTip(null); });
 
   function barRows(rows, fmt, max, clickable) {
     return rows.map((r) => `
@@ -93,7 +103,7 @@
   }
 
   /* ---------- state ---------- */
-  const S = { view: store.get("view", "dfte"), editing: null, allProjects: false, month: null, agent: null, cat: null, showAll: false, mode: store.get("mode", "mono") };
+  const S = { view: store.get("view", "dfte"), editing: null, allProjects: false, tip: null, month: null, agent: null, cat: null, showAll: false, mode: store.get("mode", "mono") };
   let data = null, AG = {}, enabled = {};
 
   const pickAgent = (id) => { if (!enabled[id]) return; S.agent = S.agent === id ? null : id; S.showAll = false; render(); };
@@ -497,7 +507,7 @@
     explained($("#h-range"), h.range);
     explained($("#h-split"), h.split || []);
     $("#h-split").hidden = !(h.split || []).length;
-    $("#h-tip").hidden = true;
+    setTip(S.tip);   // keep an open explanation open (with fresh numbers) across refreshes
     $("#h-sentence").textContent = h.sentence;
     $("#h-filter").hidden = !S.agent;
     if (S.agent) $("#h-filter-name").textContent = AG[S.agent].name;

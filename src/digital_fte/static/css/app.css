@@ -202,5 +202,8 @@ footer{margin-top:48px;text-align:center;font-family:var(--mono);font-size:12px;
 /* Headline detail lines explain themselves */
 .headline .tip{border-bottom:1px dotted var(--faint);cursor:help;border-radius:2px}
 .headline .tip:hover,.headline .tip.on{color:var(--fg);border-bottom-color:var(--fg)}
-.tipbox{margin:10px 0 0;max-width:46ch;font-size:13px;line-height:1.5;color:var(--fg);background:var(--pill);border-radius:8px;padding:8px 11px}
-@media (max-width:860px){.tipbox{margin-inline:auto;text-align:left}}
+.headline{position:relative}
+/* Floats where it would sit in the flow, over the sentence below, so nothing moves when it opens. */
+.tipbox{position:absolute;z-index:5;margin:8px 0 0;width:min(46ch,100%);font-size:13px;line-height:1.5;color:var(--fg);
+  background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:8px 11px;box-shadow:0 6px 20px rgba(0,0,0,.08);text-align:left}
+@media (max-width:860px){.tipbox{left:50%;transform:translateX(-50%)}}
