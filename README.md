@@ -139,6 +139,8 @@ You can make learning or admin count half, or not at all, in the settings.
 
 ### Other numbers on the dashboard
 
+Hover over (or tap) any number on the dashboard to see its definition.
+
 | Number | Meaning |
 |---|---|
 | **Range** | DFTE using the low and high estimate of every task |

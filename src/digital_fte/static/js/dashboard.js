@@ -135,10 +135,14 @@
     },
     metrics(a) {
       return [
-        ["Prompts", int(a.prompts), "things you asked your agents"],
-        ["Actions", int(a.actions), "files read and edited, commands, searches"],
-        ["Lines written", "+" + int(a.added), `${int(a.removed)} lines removed`],
-        ["Active time", fmtH(a.min / 60), "idle gaps over 10 min left out"],
+        ["Prompts", int(a.prompts), "things you asked your agents",
+          "Messages you typed to your agents this month. Instructions one agent gives another (subagents) aren't counted."],
+        ["Actions", int(a.actions), "files read and edited, commands, searches",
+          "Every step the agents took on their own: reading or editing a file, running a command, searching the web."],
+        ["Lines written", "+" + int(a.added), `${int(a.removed)} lines removed`,
+          "Lines of code and documents the agents added, and lines they removed or replaced. Cursor only records this per chat."],
+        ["Active time", fmtH(a.min / 60), "idle gaps over 10 min left out",
+          "How long the sessions were in use: the time between messages, with any gap over 10 minutes counted as a break."],
       ];
     },
     legend() {
@@ -266,10 +270,14 @@
       const pa = prev ? DFTE.agg(DFTE.items(prev)) : null;
       const prevCpd = pa && pa.dfte ? costFor(prev) / pa.dfte : null;
       return [
-        ["Net hours", fmtH(a.net), `${a.n} tasks · ${fmtH(a.kept)} of work kept`],
-        ["Leverage", a.y ? (a.kept / a.y).toFixed(1) + "×" : "–", "hours delivered per hour you spent"],
-        ["Cost per DFTE", a.dfte ? money(cost / a.dfte) : "–", `vs ${money(data.settings.human_cost_per_month)} for a person` + (prevCpd ? ` · ${money(prevCpd)} in ${monthName(prev, false)}` : "")],
-        ["Keep rate", a.h ? Math.round((a.kept / a.h) * 100) + "%" : "–", "of agent output you used"],
+        ["Net hours", fmtH(a.net), `${a.n} tasks · ${fmtH(a.kept)} of work kept`,
+          `The work your agents did for you, in hours: for each task, the hours a person would need × the share you kept, minus your own time, added up. ${fmtH(a.net)} ÷ ${data.settings.hours_per_fte_month} hours in a working month = ${a.dfte.toFixed(1)} DFTE.`],
+        ["Leverage", a.y ? (a.kept / a.y).toFixed(1) + "×" : "–", "hours delivered per hour you spent",
+          `Hours of work you got back for every hour you spent prompting and reviewing.${a.y ? ` ${(a.kept / a.y).toFixed(1)}× means each hour of your time produced about ${(a.kept / a.y).toFixed(0)} hours of work.` : ""} It reads high, because thinking and checking outside the chat isn't counted yet.`],
+        ["Cost per DFTE", a.dfte ? money(cost / a.dfte) : "–", `vs ${money(data.settings.human_cost_per_month)} for a person` + (prevCpd ? ` · ${money(prevCpd)} in ${monthName(prev, false)}` : ""),
+          `What one person's worth of agent work costs you: the agents' monthly subscriptions (this month only up to today) ÷ DFTE. Compare it with ${money(data.settings.human_cost_per_month)}, the monthly cost of a person.`],
+        ["Keep rate", a.h ? Math.round((a.kept / a.h) * 100) + "%" : "–", "of agent output you used",
+          "How much of the agents' work you actually used: hours kept ÷ hours produced. Lower means more output was thrown away or redone."],
       ];
     },
     legend: () => `<span><i class="sw solid"></i>Net DFTE</span><span><i class="sw band"></i>Range</span><span><i class="sw dash"></i>Gross</span><span><i class="sw dot"></i>Rules only</span>`,
@@ -512,7 +520,12 @@
     $("#h-filter").hidden = !S.agent;
     if (S.agent) $("#h-filter-name").textContent = AG[S.agent].name;
 
-    $("#metrics").innerHTML = view.metrics(a).map(([k, v, s]) => `<div class="card"><div class="k">${k}</div><div class="v">${v}</div><div class="s">${s}</div></div>`).join("");
+    // Each card explains itself on hover, keyboard focus or tap; the definition floats below it.
+    $("#metrics").innerHTML = view.metrics(a).map(([k, v, s, tip]) => `
+      <div class="card${tip ? " has-tip" : ""}"${tip ? ' tabindex="0"' : ""}>
+        <div class="k">${k}</div><div class="v">${v}</div><div class="s">${s}</div>
+        ${tip ? `<div class="card-tip" role="tooltip">${esc(tip)}</div>` : ""}
+      </div>`).join("");
     $("#legend").innerHTML = view.legend();
     renderChart();
     bars($("#by-agent"), view.agentBars(), view.fmtBar, pickAgent);
