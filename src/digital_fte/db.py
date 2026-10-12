@@ -77,9 +77,10 @@ def replace_source(con: sqlite3.Connection, key: str, agent: str, version: str, 
 
 
 def forget_missing(con: sqlite3.Connection, agent: str, live_keys: set[str]) -> int:
-    """Drop sessions whose source no longer exists (deleted in the agent)."""
+    """Sources the agent has since deleted. Their sessions are KEPT: agents prune
+    old history (Claude Code removes transcripts after ~30 days by default), and
+    this database is then the only record of that work. Only the source entry is
+    dropped, so the session is re-read if the file ever comes back."""
     gone = [r[0] for r in con.execute("select key from sources where agent=?", (agent,)) if r[0] not in live_keys]
-    for key in gone:
-        replace_source(con, key, agent, "", [])
-        con.execute("delete from sources where key=?", (key,))
+    con.executemany("delete from sources where key=?", [(k,) for k in gone])
     return len(gone)

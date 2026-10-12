@@ -13,8 +13,8 @@ Runs only on this Mac, bound to `127.0.0.1`. No transcript leaves the machine.
 | 1 | Look and feel: ASCII agent orbit, dashboard, sample data | done |
 | 2 | Readers for all four agents, local database, `fte scan`, `config.toml` | done |
 | 3 | Task splitting, rules-based H, K, Y, real monthly DFTE | done |
-| 4 | AI estimates (Cortex, Claude, OpenAI, Gemini, local), editable tasks, learning from corrections | **done** |
-| 5 | Nightly refresh, cost per DFTE, shareable totals | |
+| 4 | AI estimates (Cortex, Claude, OpenAI, Gemini, local), editable tasks, learning from corrections | done |
+| 5 | Daily refresh, history kept after agents prune it, cost per DFTE over time, shareable summary | **done** |
 
 ## Run it
 
@@ -25,6 +25,9 @@ python3 -m venv .venv
 .venv/bin/fte estimate       # recompute tasks and print rules vs final DFTE per month
 .venv/bin/fte estimate --ai  # also send tasks the AI hasn't seen yet (--limit N)
 .venv/bin/fte serve          # → http://127.0.0.1:8765 (also rescans on start)
+.venv/bin/fte refresh        # scan + AI estimates: what the daily job runs
+.venv/bin/fte schedule install --at 20:00   # daily refresh via launchd (also: remove, status)
+.venv/bin/fte share --name Amrendra         # write the totals-only summary page
 .venv/bin/python -m pytest   # reader tests
 ```
 
@@ -186,6 +189,39 @@ pause_seconds = 3                         # gap between requests
 - Cortex allows one request at a time per person and answers `429` when busy;
   the app waits as asked and pauses between requests so your own Cortex agents
   aren't queued behind it.
+
+## Daily refresh
+
+`fte schedule install --at 20:00` adds a macOS launch agent
+(`~/Library/LaunchAgents/local.digital-fte.refresh.plist`) that runs
+`fte refresh --if-older-than 12`:
+
+- every day at the set time, at low priority;
+- **if the Mac is asleep then**, as soon as it wakes (launchd runs a missed
+  calendar job once on wake, however many days were missed);
+- **if the Mac was shut down**, at login. The 12-hour check stops it re-running
+  every time you log in.
+
+Missing days loses nothing: agents keep their history and the next run catches
+up. The one thing that can't be caught up is history an agent has deleted.
+Claude Code removes transcripts after about 30 days by default, so the app
+**keeps every session it has read**, even after the agent deletes the file.
+
+The job and the dashboard server share file locks (`~/.digital-fte/.scan.lock`,
+`.ai.lock`), so they never scan or call the AI service at the same time. Output
+goes to `~/.digital-fte/refresh.log`; the Settings section shows the schedule
+and the last run. If you move the project folder, run `fte schedule install`
+again, since the job points at this folder's Python.
+
+## Sharing
+
+`fte share --name <you>` writes `~/.digital-fte/summary.html`, and the
+dashboard serves the same page at `/share` (link under Settings → Share). It
+holds totals only: monthly DFTE with range and rules-only, net hours, tasks,
+leverage, cost per DFTE and keep rate, plus splits by agent and kind of work.
+No task names, prompts, file names, project or customer names. Cost per DFTE
+counts the agents' monthly subscriptions, and for the current month only the
+days elapsed so far.
 
 ## The orbit
 

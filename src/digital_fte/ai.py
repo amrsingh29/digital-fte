@@ -237,6 +237,15 @@ def run(db_path, cfg: dict, limit: int | None = None) -> dict:
         return {"skipped": f"{name}: {why}"}
     if not _lock.acquire(blocking=False):
         return {"skipped": "already running"}
+    from .jobs import file_lock
+    with file_lock("ai", wait=False) as got:
+        if not got:
+            _lock.release()
+            return {"skipped": "already running in another process"}
+        return _run(db_path, cfg, name, svc, limit)
+
+
+def _run(db_path, cfg: dict, name: str, svc: dict, limit: int | None) -> dict:
     try:
         con = sqlite3.connect(db_path)
         con.row_factory = sqlite3.Row

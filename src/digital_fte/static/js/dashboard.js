@@ -186,11 +186,14 @@
       };
     },
     metrics(a) {
-      const cost = data.agents.filter((g) => enabled[g.id] && (!S.agent || g.id === S.agent)).reduce((s, g) => s + g.cost, 0);
+      const cost = costFor(S.month);
+      const prev = data.months[data.months.indexOf(S.month) - 1];
+      const pa = prev ? DFTE.agg(DFTE.items(prev)) : null;
+      const prevCpd = pa && pa.dfte ? costFor(prev) / pa.dfte : null;
       return [
         ["Net hours", fmtH(a.net), `${a.n} tasks · ${fmtH(a.kept)} of work kept`],
         ["Leverage", a.y ? (a.kept / a.y).toFixed(1) + "×" : "–", "hours delivered per hour you spent"],
-        ["Cost per DFTE", a.dfte ? money(cost / a.dfte) : "–", `vs ${money(data.settings.human_cost_per_month)} for a person`],
+        ["Cost per DFTE", a.dfte ? money(cost / a.dfte) : "–", `vs ${money(data.settings.human_cost_per_month)} for a person` + (prevCpd ? ` · ${money(prevCpd)} in ${monthName(prev, false)}` : "")],
         ["Keep rate", a.h ? Math.round((a.kept / a.h) * 100) + "%" : "–", "of agent output you used"],
       ];
     },
@@ -201,7 +204,9 @@
       const line = S.agent && S.mode === "color" ? v(`--a-${S.agent}`) : v("--fg");
       return {
         yFmt: (x) => x.toFixed(1),
-        tooltip: (i) => { const r = rows[i]; return `<b>${monthName(data.months[i])}</b><br>Net ${r.dfte.toFixed(2)} DFTE (${r.dfteLo.toFixed(1)}–${r.dfteHi.toFixed(1)})<br>Rules only ${r.rulesDfte.toFixed(2)} · gross ${r.gross.toFixed(2)}<br>${r.n} tasks · ${r.ai} AI-estimated`; },
+        tooltip: (i) => { const r = rows[i], m = data.months[i], c = costFor(m);
+          return `<b>${monthName(m)}</b><br>Net ${r.dfte.toFixed(2)} DFTE (${r.dfteLo.toFixed(1)}–${r.dfteHi.toFixed(1)})<br>Rules only ${r.rulesDfte.toFixed(2)} · gross ${r.gross.toFixed(2)}` +
+            `<br>Cost per DFTE ${r.dfte ? money(c / r.dfte) : "–"}<br>${r.n} tasks · ${r.ai} AI-estimated`; },
         boundaryGap: false,
         series: [
           { type: "line", stack: "band", data: rows.map((r) => r.dfteLo), symbol: "none", lineStyle: { opacity: 0 }, silent: true },
@@ -262,6 +267,23 @@
   };
 
   const V = () => (S.view === "activity" ? REAL : DFTE);
+
+  // Subscription cost counted for a month: in full for past months, up to today for the current one.
+  function costFor(month) {
+    const cost = data.agents.filter((g) => enabled[g.id] && (!S.agent || g.id === S.agent)).reduce((s, g) => s + g.cost, 0);
+    const now = new Date(data.now * 1000), [y, m] = month.split("-").map(Number);
+    if (y === now.getFullYear() && m === now.getMonth() + 1) return cost * now.getDate() / new Date(y, m, 0).getDate();
+    return cost;
+  }
+
+  function renderSchedule() {
+    const st = data.schedule;
+    $("#schedule-note").innerHTML = st.installed
+      ? `Runs every day at <b>${esc(st.at)}</b>. If the Mac is asleep then, it runs when it wakes; if it was shut down, it runs at login.
+         Missed days are caught up on the next run. ${st.loaded ? "" : "<b>macOS hasn't loaded it</b>, run <code>fte schedule install</code> again. "}` +
+        (st.last_log ? `<br><span class="note">Last run: ${esc(st.last_log)}</span>` : "")
+      : `Not set up. Run <code>.venv/bin/fte schedule install --at 20:00</code> in the project folder to refresh every day.`;
+  }
 
   /* ---------- AI status, task editor, AI services ---------- */
   const activeSvc = () => data.ai.services.find((x) => x.active);
@@ -491,6 +513,7 @@
     if (!data.months.length) { $("#banner").textContent = "No sessions found yet. Check the agent paths in Settings, then Rescan."; renderAgents(); return; }
     render(animate);
     renderAI();
+    renderSchedule();
     // Keep the page live while a scan or AI run is going, but never while you're editing a task.
     if (data.scanning || data.ai.progress.running) setTimeout(() => (S.editing ? null : load()), data.scanning ? 1500 : 4000);
   }

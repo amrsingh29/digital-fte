@@ -193,3 +193,5 @@ footer{margin-top:48px;text-align:center;font-family:var(--mono);font-size:12px;
 #ai-more{margin:12px 0 0}
 #ai-more span{text-decoration:underline dotted;cursor:help}
 .linkish{font:inherit;color:var(--fg);text-decoration:underline;text-underline-offset:2px;padding:0}
+.settings .plain{margin:0;max-width:72ch;font-size:14px}
+.settings .plain a{color:var(--fg);text-underline-offset:2px}

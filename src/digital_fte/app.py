@@ -6,11 +6,12 @@ from datetime import datetime
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 
-from . import ai, config, db, refine
+from . import ai, config, db, jobs, refine, share
 from .collectors import COLLECTORS
 from .estimate import CATEGORIES_ROLE
 from .scan import scan
@@ -125,6 +126,7 @@ def _real() -> dict:
         "ai": {"use": cfg["ai"].get("use", "off"), "auto": cfg["ai"].get("auto", False), "services": services,
                **ai_summary, "progress": dict(ai.progress)},
         "categories": list(CATEGORIES_ROLE),
+        "schedule": jobs.status(),
         "agents": agents,
         "months": months,
         "sessions": sessions,
@@ -211,3 +213,9 @@ def uncorrect(task_id: str):
     finally:
         con.close()
     return {"ok": True}
+
+
+@app.get("/share", response_class=HTMLResponse)
+def share_page(name: str | None = None):
+    """The totals-only summary, as it would be shared."""
+    return share.page(share.build(), name)

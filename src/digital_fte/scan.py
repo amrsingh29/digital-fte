@@ -20,11 +20,18 @@ class AgentResult:
     found: bool = False
     sources: int = 0
     updated: int = 0
-    removed: int = 0
+    gone: int = 0       # sources the agent deleted; their sessions are kept
     errors: list[str] = field(default_factory=list)
 
 
 def scan(full: bool = False, only: str | None = None) -> list[AgentResult]:
+    from .jobs import file_lock
+
+    with file_lock("scan"):
+        return _scan(full, only)
+
+
+def _scan(full: bool, only: str | None) -> list[AgentResult]:
     cfg = config.load()
     con = db.connect(config.DB_PATH)
     results = []
@@ -52,7 +59,7 @@ def scan(full: bool = False, only: str | None = None) -> list[AgentResult]:
                     res.updated += 1
                 except Exception as e:  # one bad file shouldn't stop the scan
                     res.errors.append(f"{src.key}: {e.__class__.__name__}: {e}")
-            res.removed = db.forget_missing(con, aid, live)
+            res.gone = db.forget_missing(con, aid, live)
         except Exception as e:
             res.errors.append(f"{e.__class__.__name__}: {e}\n{traceback.format_exc(limit=3)}")
         con.commit()

@@ -147,5 +147,7 @@ def test_db_roundtrip(tmp_path):
     r = con.execute("select * from sessions").fetchone()
     assert (r["n_prompts"], r["n_actions"], r["lines_added"], r["words_out"]) == (1, 1, 3, 3)
     assert r["active_min"] == 11  # 1 min + an hour-long gap capped at 10
+    # The agent deleted its file: the source is forgotten, the session is kept.
     assert db.forget_missing(con, "cline", set()) == 1
-    assert con.execute("select count(*) from sessions").fetchone()[0] == 0
+    assert con.execute("select count(*) from sessions").fetchone()[0] == 1
+    assert con.execute("select count(*) from sources").fetchone()[0] == 0
