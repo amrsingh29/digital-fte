@@ -14,7 +14,7 @@ from html import escape
 
 from . import config, db, refine
 from .collectors import COLLECTORS
-from .estimate import CATEGORIES_ROLE
+from .estimate import CATEGORIES_ROLE, PURPOSES
 
 RAMP = " .:-=+*#%@"
 
@@ -78,11 +78,15 @@ def build(cfg: dict | None = None) -> dict:
     by_kind = {}
     for t in cur:
         by_kind[t["category"]] = by_kind.get(t["category"], 0) + t["net"] / hpf
+    by_purpose = {}
+    for t in cur:
+        by_purpose[t["purpose"]] = by_purpose.get(t["purpose"], 0) + t["net"] / hpf
 
     return {
         "generated": now, "current": current, "months": rows, "hpf": hpf,
         "human_cost": cfg["dfte"]["human_cost_per_month"],
         "agents": sorted(((COLLECTORS[a].name, v) for a, v in by_agent.items()), key=lambda x: -x[1]),
+        "purposes": [(PURPOSES[p], by_purpose[p]) for p in PURPOSES if by_purpose.get(p, 0) >= 0.05],
         "kinds": sorted(((k, CATEGORIES_ROLE[k], v) for k, v in by_kind.items()), key=lambda x: -x[2]),
         "ai": ai_summary, "task_count": len(tasks),
         "corrected": ai_summary.get("corrected", 0),
@@ -193,6 +197,7 @@ def render(s: dict, name: str | None = None) -> str:
   <p class="eyebrow">Digital FTE · {_mname(cur['month'])}{' · month to date' if is_current else ''}</p>
   <p class="big">{cur['dfte']:.1f}<small>DFTE</small></p>
   <p class="range">range {cur['lo']:.1f} – {cur['hi']:.1f} · rules only {cur['rules']:.1f}</p>
+  <p class="range">{' · '.join(f"{v:.1f} {escape(label.lower())}" for label, v in s['purposes'])}</p>
   <p class="lede">My AI coding agents delivered {_words(cur['dfte'])}{' so far this month' if is_current else ''}.</p>"""
             if cur else '<p class="lede">No tasks recorded yet.</p>')
 
@@ -304,7 +309,8 @@ td{{font-family:var(--mono)}}
       <code>DFTE = net hours ÷ {s['hpf']:g}</code> productive hours per person per month.</p>
     <p>H starts from rules (lines written, files read, commands, answers) and is refined by {escape(est_by)}, which judges how hard
       each task really was, within 0.25× to 2× of the rules estimate. {s['corrected']} task{'s' if s['corrected'] != 1 else ''} were
-      reviewed and corrected by hand. Cost per DFTE uses the agents' monthly subscriptions, counting the current month up to today.</p>
+      reviewed and corrected by hand. Work is counted in three parts: project work, general &amp; learning (asking the
+      AI to explain or teach, as I would ask a senior colleague), and setup &amp; admin of my own tools. Cost per DFTE uses the agents' monthly subscriptions, counting the current month up to today.</p>
     <p class="note">Generated {now:%-d %B %Y, %H:%M} from {s['task_count']} tasks. Totals only: no task names, prompts, files or customer names.</p>
   </section>
 </main>"""

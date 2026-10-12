@@ -21,13 +21,14 @@ def setup(tmp_path, n_tasks=1):
             Event(ts=i * 10_000 + 90, kind="reply", text="done")])
         db.replace_source(con, s.source, s.agent, "v", [s])
     estimate.rebuild(con, CFG)
-    con.executescript(ai.TABLE)
+    ai.ensure_tables(con)
     return con, [r["id"] for r in con.execute("select id from tasks order by started")]
 
 
-def add_ai(con, task_id, h, k=0.9, title="AI title", category="documentation", service="cortex", model="cortex-fast"):
-    con.execute("insert or replace into ai_estimates values (?,?,?,?,?,?,?,?,?,?,?,?,?)",
-                (task_id, service, model, 3, title, category, h * 0.7, h, h * 1.3, k, "why", None, time.time()))
+def add_ai(con, task_id, h, k=0.9, title="AI title", category="documentation", service="cortex", model="cortex-fast",
+           purpose="project"):
+    con.execute("insert or replace into ai_estimates values (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                (task_id, service, model, 3, title, category, h * 0.7, h, h * 1.3, k, "why", None, time.time(), purpose))
 
 
 def final(con, task_id):
@@ -127,3 +128,27 @@ def test_config_migrates_old_ai_block(tmp_path, monkeypatch):
     assert set(ai.services(cfg)) == {"cortex", "claude", "openai", "gemini", "local"}
     config.set_ai_use("claude")
     assert config.load()["ai"]["use"] == "claude"
+
+
+def test_purpose_ai_then_correction_and_weights(tmp_path):
+    con, [tid] = setup(tmp_path)
+    t, _ = final(con, tid)
+    assert t["purpose"] == "project" and t["group"] == "p"          # rules: an edited report is project work
+    add_ai(con, tid, h=4, k=1.0, purpose="learning")
+    t, _ = final(con, tid)
+    assert (t["purpose"], t["group"]) == ("learning", "General & learning")
+    full = t["net"]
+    cfg = dict(CFG, purposes={"learning_weight": 0.5, "admin_weight": 1.0})
+    half = next(x for x in refine.finalize(con, cfg)[0] if x["id"] == tid)
+    assert half["net"] == pytest.approx(full * 0.5, abs=0.01)
+    refine.save_correction(con, tid, purpose="admin")
+    t, _ = final(con, tid)
+    assert (t["purpose"], t["group"]) == ("admin", "Setup & admin")
+
+
+def test_ai_reruns_estimates_without_purpose(tmp_path):
+    con, [tid] = setup(tmp_path)
+    add_ai(con, tid, h=4, purpose=None)
+    assert [r["id"] for r in ai.pending(con, "cortex", "cortex-fast", 10)] == [tid]
+    add_ai(con, tid, h=4, purpose="learning")
+    assert ai.pending(con, "cortex", "cortex-fast", 10) == []

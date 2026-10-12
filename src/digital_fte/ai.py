@@ -23,6 +23,7 @@ import urllib.request
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 CATEGORIES = ["code", "documentation", "demo prep", "research", "analysis"]
+PURPOSES = ["project", "learning", "admin"]
 
 SYSTEM = """You review one piece of work an AI coding agent did for a person, and estimate how long
 a competent professional would have needed to produce the same result WITHOUT AI help.
@@ -39,6 +40,13 @@ write, test and polish. Do not include waiting or meetings.
 Also judge the keep factor k (0 to 1): how much of the output the person likely used. Use 1 when
 the conversation shows they built on it, lower when they abandoned, redid or questioned it.
 
+Set `purpose`:
+- "project": the work produced or advanced something for a specific project, customer, product or deliverable.
+- "learning": the person was asking to understand a topic, concept, tool or idea for themselves, the way they
+  would ask a senior colleague or a teacher. For these, h is the time they would have spent reading,
+  searching and asking around to reach the same understanding without AI.
+- "admin": setting up, configuring or fixing their own tools, machine or accounts.
+
 Return only JSON matching the schema. `title` is a short plain name for the work (max 70
 characters). `reason` is one sentence on what drove the estimate."""
 
@@ -47,13 +55,14 @@ SCHEMA = {
     "properties": {
         "title": {"type": "string"},
         "category": {"type": "string", "enum": CATEGORIES},
+        "purpose": {"type": "string", "enum": PURPOSES},
         "h_low": {"type": "number"},
         "h": {"type": "number"},
         "h_high": {"type": "number"},
         "k": {"type": "number"},
         "reason": {"type": "string"},
     },
-    "required": ["title", "category", "h_low", "h", "h_high", "k", "reason"],
+    "required": ["title", "category", "purpose", "h_low", "h", "h_high", "k", "reason"],
     "additionalProperties": False,
 }
 
@@ -61,10 +70,17 @@ TABLE = """
 create table if not exists ai_estimates (
   task_id text not null, service text not null, model text not null, n_events int,
   title text, category text, h_low real, h real, h_high real, k real, reason text,
-  error text, created_at real,
+  error text, created_at real, purpose text,
   primary key (task_id, service, model)
 );
 """
+
+
+def ensure_tables(con: sqlite3.Connection) -> None:
+    con.executescript(TABLE)
+    cols = {r[1] for r in con.execute("pragma table_info(ai_estimates)")}
+    if "purpose" not in cols:   # added after the first release of this table
+        con.execute("alter table ai_estimates add column purpose text")
 
 
 class AIError(Exception):
@@ -203,7 +219,8 @@ def estimate_one(svc: dict, summary: str) -> dict:
         h = float(out["h"])
         lo, hi = sorted([float(out.get("h_low", h)), float(out.get("h_high", h))])
         cat = out.get("category") if out.get("category") in CATEGORIES else None
-        return {"title": str(out.get("title", ""))[:90], "category": cat, "h": h, "h_low": min(lo, h),
+        purpose = out.get("purpose") if out.get("purpose") in PURPOSES else None
+        return {"title": str(out.get("title", ""))[:90], "category": cat, "purpose": purpose, "h": h, "h_low": min(lo, h),
                 "h_high": max(hi, h), "k": float(out.get("k", 0.7)), "reason": str(out.get("reason", ""))[:300]}
     except (KeyError, TypeError, ValueError) as e:
         raise AIError(f"unexpected reply shape: {e}") from None
@@ -216,12 +233,13 @@ _lock = threading.Lock()
 
 
 def pending(con: sqlite3.Connection, name: str, model: str, limit: int) -> list[sqlite3.Row]:
-    """Tasks with no estimate from this service/model yet, or whose task grew since."""
-    con.executescript(TABLE)
+    """Tasks with no estimate from this service/model yet, whose task grew since, or
+    whose estimate predates the purpose field."""
+    ensure_tables(con)
     return con.execute(
         "select t.id, t.summary, t.n_events from tasks t left join ai_estimates a "
         "on a.task_id = t.id and a.service = ? and a.model = ? "
-        "where a.task_id is null or a.n_events != t.n_events or a.error is not null "
+        "where a.task_id is null or a.n_events != t.n_events or a.error is not null or a.purpose is null "
         "order by t.started desc limit ?", (name, model, limit)).fetchall()
 
 
@@ -269,9 +287,10 @@ def _run(db_path, cfg: dict, name: str, svc: dict, limit: int | None) -> dict:
                     r, err = {}, str(e)[:300]
                     progress["errors"] += 1
                     progress["last_error"] = err
-                con.execute("insert or replace into ai_estimates values (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                con.execute("insert or replace into ai_estimates values (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                             (t["id"], name, svc["model"], t["n_events"], r.get("title"), r.get("category"),
-                             r.get("h_low"), r.get("h"), r.get("h_high"), r.get("k"), r.get("reason"), err, time.time()))
+                             r.get("h_low"), r.get("h"), r.get("h_high"), r.get("k"), r.get("reason"), err, time.time(),
+                             r.get("purpose")))
                 con.commit()
                 progress["done"] += 1
         con.close()

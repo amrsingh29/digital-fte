@@ -7,7 +7,7 @@ import tomllib
 import pytest
 
 from digital_fte import config, db, estimate
-from digital_fte.collectors.base import Event, Session
+from digital_fte.collectors.base import HOME, Event, Session
 
 CFG = tomllib.loads(config.DEFAULT)
 MIN = 60
@@ -119,3 +119,15 @@ def test_session_level_lines_are_shared_by_edits(tmp_path):
 ])
 def test_action_classes(tool, cls):
     assert estimate.action_class(tool) == cls
+
+
+@pytest.mark.parametrize("ev,files,project,text,expected", [
+    (dict(edits=0, commands=0, web=2, reads=0, words=400), [], "(no project)", "how do vector databases work?", "learning"),
+    (dict(edits=0, commands=0, web=0, reads=0, words=300), [], "(no project)", "explain RAG chunking", "learning"),
+    (dict(edits=0, commands=0, web=0, reads=12, words=300), [], "billing-api", "what does this module do?", "project"),
+    (dict(edits=2, commands=1, web=0, reads=1, words=50), [HOME + "/.zshrc"], "zshrc config", "fix my prompt", "admin"),
+    (dict(edits=0, commands=4, web=0, reads=0, words=80), [], "(no project)", "install and configure the mcp server", "admin"),
+    (dict(edits=5, commands=2, web=0, reads=3, words=90), ["/repo/app.py"], "app", "add login", "project"),
+])
+def test_purpose_rules(ev, files, project, text, expected):
+    assert estimate.purpose_of(ev, files, project, text) == expected

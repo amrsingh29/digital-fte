@@ -142,6 +142,32 @@ All of these numbers live in `[rates]` and `[dfte]` in the config.
   keyboard isn't visible, so leverage leans high.
 - Category comes from file types and a few keywords.
 
+## Purpose: project work, learning, setup
+
+Every task also gets a purpose, separate from its category:
+
+| Purpose | Examples | Grouped under |
+|---|---|---|
+| Project work | a customer deck, a POC, a feature | its project, or "Unassigned" |
+| General & learning | "how do vector databases work?", explaining a concept, comparing tools | General & learning |
+| Setup & admin | configuring agents, fixing your shell, installing tools | Setup & admin |
+
+The AI step decides it from the task summary; without AI, rules decide (no edits
+plus a question or reading-up outside a project means learning; edits only to
+your own tool config, or setup talk with commands, means admin). You can change
+it in the task editor. General questions therefore never need a project.
+
+All three count towards DFTE by default: the AI explaining things is doing what a
+senior colleague or teacher would. The dashboard and the shared summary show the
+split (for example "1.2 project work · 0.1 general & learning"). To weigh them
+differently:
+
+```toml
+[purposes]
+learning_weight = 1.0   # 0.5 = count half, 0 = leave out
+admin_weight = 1.0
+```
+
 ## AI estimates (Phase 4)
 
 Rules measure volume; the AI step judges difficulty. For each task it reads a

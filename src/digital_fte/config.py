@@ -13,6 +13,15 @@ HOME_DIR = Path(os.environ.get("DFTE_HOME", "~/.digital-fte")).expanduser()
 CONFIG_PATH = HOME_DIR / "config.toml"
 DB_PATH = HOME_DIR / "fte.db"
 
+PURPOSES_DEFAULT = """\
+# How much each kind of work counts towards DFTE (1.0 = fully, 0.5 = half, 0 = not at all).
+# General & learning: asking the AI to explain or teach, like asking a senior colleague.
+# Setup & admin: configuring or fixing your own tools.
+[purposes]
+learning_weight = 1.0
+admin_weight = 1.0
+"""
+
 AI_DEFAULT = """\
 # AI that refines task estimates. `use` picks the active service; "off" = rules only.
 # Only short task summaries are sent, never full transcripts. Keys are never stored
@@ -104,7 +113,7 @@ enabled = true
 path = "~/.cline/data/sessions"
 cost_per_month = 0
 
-""" + AI_DEFAULT
+""" + PURPOSES_DEFAULT + "\n" + AI_DEFAULT
 
 
 def _block(name: str) -> str:
@@ -128,6 +137,8 @@ def ensure() -> None:
     text = CONFIG_PATH.read_text()
     if not re.search(r"^\[rates\]", text, re.M):
         text = text.rstrip() + "\n\n" + _block("rates")
+    if not re.search(r"^\[purposes\]", text, re.M):
+        text = text.rstrip() + "\n\n" + PURPOSES_DEFAULT
     ai = re.search(r"^(#[^\n]*\n)*\[ai\]\n(?:(?!^\[(?!ai\.)).*\n?)*", text, re.M)
     if not ai:
         text = text.rstrip() + "\n\n" + AI_DEFAULT
@@ -145,7 +156,7 @@ def load() -> dict:
     cfg.setdefault("dfte", {})
     for k, v in defaults["dfte"].items():
         cfg["dfte"].setdefault(k, v)
-    for section in ("rates", "ai"):
+    for section in ("rates", "ai", "purposes"):
         cfg.setdefault(section, {})
         for k, v in defaults[section].items():
             if isinstance(v, dict):

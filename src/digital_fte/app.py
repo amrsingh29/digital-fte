@@ -13,7 +13,7 @@ from pydantic import BaseModel
 
 from . import ai, config, db, jobs, refine, share
 from .collectors import COLLECTORS
-from .estimate import CATEGORIES_ROLE
+from .estimate import CATEGORIES_ROLE, PURPOSES
 from .scan import scan
 
 HERE = Path(__file__).parent
@@ -82,7 +82,7 @@ def _real() -> dict:
         "h": t["h"], "h_low": t["h_low"], "h_high": t["h_high"], "k": t["k"], "k_basis": t["k_basis"],
         "y": t["y"], "net": t["net"], "evidence": json.loads(t["evidence"] or "{}"),
         "rules": t["rules"], "ai": t["ai"], "learned": t["learned"], "correction": t["correction"],
-        "excluded": t["excluded"],
+        "excluded": t["excluded"], "purpose": t["purpose"], "group": t["group"], "weight": t["weight"],
     } for t in task_rows if config.path_allowed(t["cwd"], cfg)]
 
     services = []
@@ -126,6 +126,7 @@ def _real() -> dict:
         "ai": {"use": cfg["ai"].get("use", "off"), "auto": cfg["ai"].get("auto", False), "services": services,
                **ai_summary, "progress": dict(ai.progress)},
         "categories": list(CATEGORIES_ROLE),
+        "purposes": PURPOSES,
         "schedule": jobs.status(),
         "agents": agents,
         "months": months,
@@ -186,6 +187,7 @@ class Correction(BaseModel):
     h: float | None = None
     k: float | None = None
     category: str | None = None
+    purpose: str | None = None
     excluded: bool = False
 
 
@@ -197,9 +199,11 @@ def correct(task_id: str, body: Correction):
         raise HTTPException(400, "H can't be negative")
     if body.category and body.category not in CATEGORIES_ROLE:
         raise HTTPException(400, "unknown category")
+    if body.purpose and body.purpose not in PURPOSES:
+        raise HTTPException(400, "unknown purpose")
     con = db.connect(config.DB_PATH)
     try:
-        refine.save_correction(con, task_id, body.h, body.k, body.category, body.excluded)
+        refine.save_correction(con, task_id, body.h, body.k, body.category, body.excluded, body.purpose)
     finally:
         con.close()
     return {"ok": True}

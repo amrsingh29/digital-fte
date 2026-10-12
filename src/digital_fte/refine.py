@@ -7,6 +7,9 @@
     3. Learn from your corrections: per category, the typical ratio between the H you
        set and the H we had; applied to uncorrected tasks once there are 3+ corrections.
     4. Your correction of a task always wins. "Not real work" sets its net hours to 0.
+    5. Purpose (project work / general & learning / setup & admin): yours, else the
+       AI's, else the rules'. Net hours are multiplied by that purpose's weight
+       ([purposes] in config; 1.0 = count fully).
 """
 
 from __future__ import annotations
@@ -16,26 +19,36 @@ import statistics
 import time
 
 from . import ai
+from .collectors.base import NO_PROJECT
+from .estimate import PURPOSES
 
 GUARD_LOW, GUARD_HIGH = 0.25, 2.0
 LEARN_MIN = 3
 
 CORRECTIONS = """
 create table if not exists corrections (
-  task_id text primary key, h real, k real, category text, excluded int default 0, updated_at real
+  task_id text primary key, h real, k real, category text, excluded int default 0, updated_at real, purpose text
 );
 """
 
 
-def save_correction(con: sqlite3.Connection, task_id: str, h=None, k=None, category=None, excluded=False) -> None:
+def ensure_tables(con: sqlite3.Connection) -> None:
+    ai.ensure_tables(con)
     con.executescript(CORRECTIONS)
-    con.execute("insert or replace into corrections values (?,?,?,?,?,?)",
-                (task_id, h, k, category, int(bool(excluded)), time.time()))
+    if "purpose" not in {r[1] for r in con.execute("pragma table_info(corrections)")}:
+        con.execute("alter table corrections add column purpose text")
+
+
+def save_correction(con: sqlite3.Connection, task_id: str, h=None, k=None, category=None, excluded=False,
+                    purpose=None) -> None:
+    ensure_tables(con)
+    con.execute("insert or replace into corrections (task_id, h, k, category, excluded, updated_at, purpose) "
+                "values (?,?,?,?,?,?,?)", (task_id, h, k, category, int(bool(excluded)), time.time(), purpose))
     con.commit()
 
 
 def clear_correction(con: sqlite3.Connection, task_id: str) -> None:
-    con.executescript(CORRECTIONS)
+    ensure_tables(con)
     con.execute("delete from corrections where task_id = ?", (task_id,))
     con.commit()
 
@@ -47,7 +60,9 @@ def _clamp(v, lo, hi):
 def finalize(con: sqlite3.Connection, cfg: dict) -> tuple[list[dict], dict]:
     """Every task with its rules, AI and final numbers, plus a summary of the AI step."""
     con.row_factory = sqlite3.Row
-    con.executescript(ai.TABLE + CORRECTIONS)
+    ensure_tables(con)
+    weights = {"project": 1.0, "learning": cfg.get("purposes", {}).get("learning_weight", 1.0),
+               "admin": cfg.get("purposes", {}).get("admin_weight", 1.0)}
     act = ai.active(cfg)
     name, model = (act[0], act[1].get("model")) if act else (None, None)
     est = {r["task_id"]: r for r in con.execute(
@@ -59,8 +74,9 @@ def finalize(con: sqlite3.Connection, cfg: dict) -> tuple[list[dict], dict]:
     # Pass 1: rules → AI, before learning.
     for t in tasks:
         e = est.get(t["id"])
+        t["purpose"] = t.get("purpose") or "project"
         t["rules"] = {"h": t["h"], "h_low": t["h_low"], "h_high": t["h_high"], "k": t["k"], "net": t["net"],
-                      "category": t["category"], "title": t["title"]}
+                      "category": t["category"], "title": t["title"], "purpose": t["purpose"]}
         t["ai"] = None
         base_h, lo, hi = t["h"], t["h_low"], t["h_high"]
         if e:
@@ -73,6 +89,8 @@ def finalize(con: sqlite3.Connection, cfg: dict) -> tuple[list[dict], dict]:
                 t["title"] = e["title"]
             if e["category"]:
                 t["category"] = e["category"]
+            if e["purpose"]:
+                t["purpose"] = e["purpose"]
             if t["k_basis"].startswith("default") and e["k"] is not None:
                 t["k"] = round(_clamp(e["k"], 0.2, 1.0), 2)
                 t["k_basis"] = f"{name}: judged from the conversation"
@@ -99,6 +117,9 @@ def finalize(con: sqlite3.Connection, cfg: dict) -> tuple[list[dict], dict]:
             t["correction"] = {"h": c["h"], "k": c["k"], "category": c["category"], "excluded": bool(c["excluded"])}
             if c["category"]:
                 t["category"] = c["category"]
+            if c["purpose"]:
+                t["correction"]["purpose"] = c["purpose"]
+                t["purpose"] = c["purpose"]
             if c["h"] is not None:
                 scale = c["h"] / h if h else 1
                 h, t["h_low"], t["h_high"] = c["h"], t["h_low"] * scale, t["h_high"] * scale
@@ -107,7 +128,12 @@ def finalize(con: sqlite3.Connection, cfg: dict) -> tuple[list[dict], dict]:
             t["excluded"] = bool(c["excluded"])
         t["h"] = round(h, 2)
         t["h_low"], t["h_high"] = round(t["h_low"], 2), round(t["h_high"], 2)
-        t["net"] = 0.0 if t["excluded"] else round(max(0.0, t["h"] * t["k"] - t["y"]), 2)
+        t["weight"] = weights.get(t["purpose"], 1.0)
+        t["net"] = 0.0 if t["excluded"] else round(max(0.0, t["h"] * t["k"] - t["y"]) * t["weight"], 2)
+        t["rules"]["net"] = round(t["rules"]["net"] * weights.get(t["rules"]["purpose"], 1.0), 2)
+        # What the "By project" view groups by: the project for project work, the purpose otherwise.
+        t["group"] = (t["project"] if t["project"] != NO_PROJECT else "Unassigned") if t["purpose"] == "project" \
+            else PURPOSES[t["purpose"]]
 
     summary = {"service": name, "model": model, "estimated": sum(1 for t in tasks if t["ai"]),
                "corrected": len(corr), "learned": learned,

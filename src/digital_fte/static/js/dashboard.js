@@ -160,12 +160,13 @@
   const DFTE = {
     items(month, { byAgent = true, byCat = false } = {}) {
       return data.tasks.filter((t) => t.date.startsWith(month) && enabled[t.agent]
-        && (!byAgent || !S.agent || t.agent === S.agent) && (!byCat || !S.cat || t.category === S.cat));
+        && (!byAgent || !S.agent || t.agent === S.agent) && (!byCat || !S.cat || t.purpose === S.cat));
     },
     agg(ts) {
       const HPF = data.settings.hours_per_fte_month;
-      const a = { n: ts.length, net: 0, lo: 0, hi: 0, kept: 0, h: 0, y: 0, rules: 0, ai: 0 };
+      const a = { n: ts.length, net: 0, lo: 0, hi: 0, kept: 0, h: 0, y: 0, rules: 0, ai: 0, by: {} };
       ts.forEach((t) => {
+        a.by[t.purpose] = (a.by[t.purpose] || 0) + net(t) / HPF;
         a.net += net(t); a.lo += net(t, t.h_low); a.hi += net(t, t.h_high); a.rules += t.rules.net; a.ai += !!t.ai;
         if (!t.excluded) { a.kept += t.h * t.k; a.h += t.h; a.y += t.y; }
       });
@@ -180,6 +181,8 @@
       return {
         eyebrow: `Digital FTE · ${monthName(S.month)}${isLatest() ? " · month to date" : ""}`, big: a.dfte.toFixed(1), unit: "DFTE",
         range: `range ${a.dfteLo.toFixed(1)} – ${a.dfteHi.toFixed(1)} · gross ${a.gross.toFixed(1)}` + (a.ai ? ` · rules only ${a.rulesDfte.toFixed(1)}` : ""),
+        split: Object.keys(data.purposes).filter((k) => a.by[k] >= 0.05)
+          .map((k) => `${a.by[k].toFixed(1)} ${data.purposes[k].toLowerCase()}`).join(" · "),
         sentence: !a.n ? `No tasks in ${monthName(S.month)}.`
           : a.dfte < 0.75 ? `${who} about ${Math.round(a.dfte * 100)}% of a full-time person${isLatest() ? " so far this month" : ""}.`
           : `${who} like having ${WORDS[r] || r} extra ${r === 1 ? "person" : "people"} on the team${isLatest() ? " so far this month" : ""}.`,
@@ -226,14 +229,14 @@
     },
     projectBars() {
       const by = {};
-      DFTE.items(S.month).forEach((t) => (by[t.project] = (by[t.project] || 0) + net(t)));
+      DFTE.items(S.month).forEach((t) => (by[t.group] = (by[t.group] || 0) + net(t)));
       return Object.entries(by).sort((a, b) => b[1] - a[1]).map(([p, h]) => ({ id: p, name: p, v: h / data.settings.hours_per_fte_month }));
     },
     fmtBar: (v) => v.toFixed(2),
     table() {
       const ts = DFTE.items(S.month, { byCat: true }).sort((a, b) => b.date.localeCompare(a.date) || net(b) - net(a));
       return {
-        title: "Tasks", chips: [...new Set(data.tasks.map((t) => t.category))], total: ts.length,
+        title: "Tasks", chips: Object.entries(data.purposes), total: ts.length,
         note: "Click a task to see why it got its estimate, or to correct it.",
         head: `<tr><th>Date</th><th>Task</th><th class="hide-sm">Agent</th><th class="hide-sm">Category</th><th class="num" title="Human-hours estimate">H</th><th class="num" title="Keep factor">K</th><th class="num hide-sm" title="Your time">You</th><th class="num">Net</th></tr>`,
         rows: (S.showAll ? ts : ts.slice(0, 12)).map((t) => `
@@ -242,7 +245,7 @@
             <td><div class="title">${esc(t.title)}${t.correction ? ' <span class="tag-sm">edited</span>' : ""}${t.excluded ? ' <span class="tag-sm">not counted</span>' : ""}</div>
               <div class="proj">${esc(t.project)} · ${t.prompts} prompts · ${t.actions} actions</div><div class="why">${esc(why(t.evidence))}</div></td>
             <td class="ag hide-sm">${dot(t.agent)}${esc(AG[t.agent].name)}</td>
-            <td class="hide-sm">${esc(t.category)}<span class="rng">${esc(t.role)}</span></td>
+            <td class="hide-sm">${esc(t.category)}<span class="rng">${t.purpose === "project" ? esc(t.role) : esc(data.purposes[t.purpose])}</span></td>
             <td class="num">${fmtH(t.h)}<span class="rng">${t.ai || t.correction ? "rules " + fmtH(t.rules.h) : `${t.h_low.toFixed(1)}–${t.h_high.toFixed(1)}`}</span></td>
             <td class="num${t.k < 0.5 ? " k0" : ""}" title="${esc(t.k_basis)}">${t.k.toFixed(2)}</td>
             <td class="num hide-sm">${fmtMin(t.y)}</td>
@@ -311,6 +314,7 @@
       <form class="fix" data-id="${esc(t.id)}">
         <label>Hours a person would need <input name="h" type="number" min="0" step="any" value="${c.h ?? t.h}"></label>
         <label>Keep factor <input name="k" type="number" min="0" max="1" step="any" value="${c.k ?? t.k}"></label>
+        <label>Purpose <select name="purpose">${Object.entries(data.purposes).map(([k, l]) => `<option value="${k}"${k === t.purpose ? " selected" : ""}>${esc(l)}</option>`).join("")}</select></label>
         <label>Category <select name="category">${opts}</select></label>
         <label class="chk"><input name="excluded" type="checkbox"${t.excluded ? " checked" : ""}> Not real work</label>
         <div class="acts">
@@ -328,6 +332,7 @@
       h: Math.abs(h - t.h) > 0.001 || t.correction?.h != null ? h : null,
       k: Math.abs(k - t.k) > 0.001 || t.correction?.k != null ? k : null,
       category: f.get("category") !== t.category || t.correction?.category ? f.get("category") : null,
+      purpose: f.get("purpose") !== t.purpose || t.correction?.purpose ? f.get("purpose") : null,
       excluded: f.get("excluded") === "on",
     };
     const r = await fetch(`/api/tasks/${encodeURIComponent(id)}/correction`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
@@ -430,6 +435,8 @@
     $("#h-unit").textContent = h.unit;
     if (animate) scramble($("#h-dfte"), h.big); else $("#h-dfte").textContent = h.big;
     $("#h-range").textContent = h.range;
+    $("#h-split").textContent = h.split || "";
+    $("#h-split").hidden = !h.split;
     $("#h-sentence").textContent = h.sentence;
     $("#h-filter").hidden = !S.agent;
     if (S.agent) $("#h-filter-name").textContent = AG[S.agent].name;
@@ -452,7 +459,7 @@
     $("#table-note").textContent = t.note;
     $("#task-head").innerHTML = t.head;
     $("#task-rows").innerHTML = t.rows || `<tr><td colspan="8" class="note">Nothing for this filter.</td></tr>`;
-    $("#cats").innerHTML = t.chips.length ? [["", "All"], ...t.chips.map((c) => [c, c])].map(([v, l]) =>
+    $("#cats").innerHTML = t.chips.length ? [["", "All"], ...t.chips.map((c) => (Array.isArray(c) ? c : [c, c]))].map(([v, l]) =>
       `<button type="button" class="chip" data-cat="${v}" aria-pressed="${(S.cat || "") === v}">${l}</button>`).join("") : "";
     $("#cats").querySelectorAll(".chip").forEach((b) => b.addEventListener("click", () => { S.cat = b.dataset.cat || null; S.showAll = false; renderTable(); }));
     $("#more").hidden = t.total <= 12;

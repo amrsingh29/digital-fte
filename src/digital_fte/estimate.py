@@ -32,6 +32,33 @@ _SPAWN = re.compile(r"^(task|agent|task_v2|spawn.*)$", re.I)
 
 DOC_EXT = {".md", ".mdx", ".txt", ".rst", ".docx", ".doc", ".pptx", ".ppt", ".xlsx", ".csv", ".pdf", ".rtf"}
 
+# Why the work was done, separate from what kind of work it was.
+PURPOSES = {"project": "Project work", "learning": "General & learning", "admin": "Setup & admin"}
+_QUESTION = re.compile(r"^\s*(what|how|why|when|which|who|can you explain|explain|tell me|teach|help me understand|"
+                       r"difference between|compare|is it|is there|should i|does|do i)\b|\?\s*$", re.I | re.M)
+_ADMIN_WORDS = re.compile(r"\b(install|configure|config|setup|set up|upgrade|permission|keychain|api key|mcp|zshrc|bashrc|"
+                          r"brew|path variable|settings\.json|launch agent|plugin|extension|login|auth)\b", re.I)
+
+
+def purpose_of(ev: dict, files: list[str], project: str, prompts_text: str) -> str:
+    """Rules fallback for a task's purpose (the AI step decides when it runs).
+    admin:    the edits are to the person's own tool config, or it's tool setup talk without edits
+    learning: nothing was produced (no edits) and it reads as a question or reading-up, outside a project
+    project:  everything else"""
+    from .collectors.base import HOME, NO_PROJECT
+    config_file = lambda f: f.startswith(HOME + "/.") or "/Library/LaunchAgents/" in f or "/Library/Application Support/" in f
+    if files and all(config_file(f) for f in files):
+        return "admin"
+    if not ev["edits"]:
+        if _ADMIN_WORDS.search(prompts_text) and ev["commands"]:
+            return "admin"
+        no_project = project == NO_PROJECT or project.endswith(" config")
+        asks = bool(_QUESTION.search(prompts_text)) or ev["web"] > 0 or ev["words"] >= 150
+        if asks and (no_project or ev["web"] >= ev["reads"]):
+            return "learning"
+    return "project"
+
+
 CATEGORIES_ROLE = ROLE = {"code": "developer", "documentation": "presales consultant", "demo prep": "presales consultant",
         "research": "analyst", "analysis": "analyst"}
 _DEMO_WORDS = re.compile(r"\b(demo|deck|slides?|presentation|pptx|pitch|storyline|walkthrough|talk track|poc)\b", re.I)
@@ -230,11 +257,14 @@ def estimate(task: Task, extra_lines: tuple[int, int], cfg: dict) -> dict:
     if category != "code" and _DEMO_WORDS.search(prompts_text):
         category = "demo prep"
 
+    purpose = purpose_of(ev, files, task.project, " ".join(
+        e["text"] or "" for e in task.events if e["kind"] == "prompt"))
+
     first = next((e for e in task.events if e["kind"] == "prompt"), None) or \
         next((e for e in task.events if e["kind"] == "instruction"), None)
     return {
         "title": first_line(first["text"] if first else "") or "(no prompt)",
-        "category": category, "role": ROLE[category],
+        "category": category, "role": ROLE[category], "purpose": purpose,
         "h": round(h, 2), "h_low": round(h * r["range_low"], 2), "h_high": round(h * r["range_high"], 2),
         "k": k, "k_basis": k_basis, "y": round(y, 2),
         "net": round(max(0.0, h * k - y), 2),
@@ -268,7 +298,7 @@ def summary(task: Task, est: dict, session: sqlite3.Row) -> str:
         f"{ev['reads']} files read/searches, {ev['commands']} commands, {ev['web']} web lookups, "
         f"{ev['words']} words of answers in chat",
         f"Final agent reply (excerpt): {clipped(replies[-1], 400) if replies else 'none'}",
-        f"Rules-based estimate: {est['h']:.1f} h ({est['category']})",
+        f"Rules-based estimate: {est['h']:.1f} h ({est['category']}, purpose guess: {est['purpose']})",
     ]
     return "\n".join(lines)
 
@@ -284,7 +314,7 @@ create table tasks (
   id text primary key, session_id text not null, agent text not null, project text,
   title text, category text, role text, started real, ended real,
   n_prompts int, n_actions int, n_events int, h real, h_low real, h_high real, k real, k_basis text,
-  y real, net real, evidence text, summary text
+  y real, net real, evidence text, summary text, purpose text
 );
 create index if not exists tasks_started on tasks(started);
 """
@@ -327,7 +357,7 @@ def rebuild(con: sqlite3.Connection, cfg: dict) -> int:
                          t.start, t.events[-1]["ts"], len(t.human_prompts),
                          sum(e["kind"] == "action" for e in t.events), len(t.events),
                          est["h"], est["h_low"], est["h_high"], est["k"], est["k_basis"], est["y"], est["net"],
-                         json.dumps(est["evidence"]), summary(t, est, s)))
-    con.executemany(f"insert or replace into tasks values ({','.join('?' * 21)})", rows)
+                         json.dumps(est["evidence"]), summary(t, est, s), est["purpose"]))
+    con.executemany(f"insert or replace into tasks values ({','.join('?' * 22)})", rows)
     con.commit()
     return len(rows)
