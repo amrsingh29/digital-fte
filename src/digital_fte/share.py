@@ -196,8 +196,11 @@ def render(s: dict, name: str | None = None) -> str:
     head = (f"""
   <p class="eyebrow">Digital FTE · {_mname(cur['month'])}{' · month to date' if is_current else ''}</p>
   <p class="big">{cur['dfte']:.1f}<small>DFTE</small></p>
-  <p class="range">range {cur['lo']:.1f} – {cur['hi']:.1f} · rules only {cur['rules']:.1f}</p>
+  <p class="range"><span title="Every task has a low and a high estimate. All the low ones add up to {cur['lo']:.1f}, all the high ones to {cur['hi']:.1f}.">likely {cur['lo']:.1f}–{cur['hi']:.1f}</span>
+    · <span title="What simple line-counting rules would say before AI review. They overcount because AI writes long, repetitive code.">{cur['rules']:.1f} without AI review</span></p>
   <p class="range">{' · '.join(f"{v:.1f} {escape(label.lower())}" for label, v in s['purposes'])}</p>
+  <p class="explain">"Likely" is the range from each task's low and high estimate. "Without AI review" is what simple
+    line-counting rules would claim on their own; the AI review judges how hard each task really was.</p>
   <p class="lede">My AI coding agents delivered {_words(cur['dfte'])}{' so far this month' if is_current else ''}.</p>"""
             if cur else '<p class="lede">No tasks recorded yet.</p>')
 
@@ -233,6 +236,8 @@ body{{background:var(--bg);color:var(--fg);font:15px/1.55 var(--sans);-webkit-fo
 .big{{font-family:var(--serif);font-size:clamp(72px,14vw,120px);line-height:.95;letter-spacing:-.03em;margin:10px 0 0;font-variant-numeric:tabular-nums}}
 .big small{{font-family:var(--mono);font-size:14px;letter-spacing:.06em;color:var(--muted);margin-left:10px}}
 .range{{font-family:var(--mono);font-size:13px;color:var(--muted);margin:8px 0 0}}
+.range span[title]{{border-bottom:1px dotted var(--faint);cursor:help}}
+.explain{{font-size:13px;color:var(--muted);max-width:52ch;margin:10px 0 0}}
 .lede{{font-family:var(--serif);font-size:22px;line-height:1.35;margin:16px 0 0;max-width:30ch;text-wrap:balance}}
 .globe{{font-family:var(--mono);font-size:7.5px;line-height:1.08;color:var(--muted);margin:0;user-select:none}}
 h2{{font-family:var(--serif);font-weight:400;font-size:26px;letter-spacing:-.015em;margin:0 0 12px;padding-bottom:10px;border-bottom:1px solid var(--line);text-wrap:balance}}

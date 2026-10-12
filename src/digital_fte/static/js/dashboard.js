@@ -33,6 +33,26 @@
     })(t0);
   }
 
+  // Headline detail lines: plain text, or parts that explain themselves on hover, focus or tap.
+  function explained(el, parts) {
+    if (typeof parts === "string") { el.textContent = parts; return; }
+    el.innerHTML = parts.map((p) => `<span class="tip" tabindex="0" data-tip="${esc(p.tip)}">${esc(p.text)}</span>`).join(" · ");
+  }
+  function showTip(e) {
+    const t = e.target.closest(".tip");
+    if (!t) return;
+    $("#h-tip").textContent = t.dataset.tip;
+    $("#h-tip").hidden = false;
+    document.querySelectorAll(".headline .tip").forEach((x) => x.classList.toggle("on", x === t));
+  }
+  function hideTip(e) {
+    if (e.relatedTarget && e.relatedTarget.closest && e.relatedTarget.closest(".tip")) return;
+    $("#h-tip").hidden = true;
+    document.querySelectorAll(".headline .tip.on").forEach((x) => x.classList.remove("on"));
+  }
+  ["mouseover", "focusin", "click"].forEach((ev) => document.querySelector(".headline").addEventListener(ev, showTip));
+  ["mouseout", "focusout"].forEach((ev) => document.querySelector(".headline").addEventListener(ev, (e) => { if (e.target.closest(".tip")) hideTip(e); }));
+
   function barRows(rows, fmt, max, clickable) {
     return rows.map((r) => `
       <${clickable ? "button type=button" : "div"} class="bar${r.on ? " on" : ""}${r.off ? " off" : ""}${r.other ? " other" : ""}" data-id="${esc(r.id)}">
@@ -208,9 +228,21 @@
       const r = Math.round(a.dfte * 2) / 2;
       return {
         eyebrow: `Digital FTE · ${monthName(S.month)}${isLatest() ? " · month to date" : ""}`, big: a.dfte.toFixed(1), unit: "DFTE",
-        range: `range ${a.dfteLo.toFixed(1)} – ${a.dfteHi.toFixed(1)} · gross ${a.gross.toFixed(1)}` + (a.ai ? ` · rules only ${a.rulesDfte.toFixed(1)}` : ""),
-        split: Object.keys(data.purposes).filter((k) => a.by[k] >= 0.05)
-          .map((k) => `${a.by[k].toFixed(1)} ${data.purposes[k].toLowerCase()}`).join(" · "),
+        // Each part carries the plain-language explanation shown on hover or tap.
+        range: [
+          { text: `likely ${a.dfteLo.toFixed(1)}–${a.dfteHi.toFixed(1)}`,
+            tip: `How sure the estimate is. Every task has a low and a high estimate: all the low ones add up to ${a.dfteLo.toFixed(1)}, all the high ones to ${a.dfteHi.toFixed(1)}. The real value is most likely near ${a.dfte.toFixed(1)}.` },
+          { text: `${a.gross.toFixed(1)} before your own time`,
+            tip: `The total before subtracting the time you spent writing prompts and reading replies. The difference, ${Math.max(0, a.gross - a.dfte).toFixed(1)}, is the part you did yourself.` },
+          ...(a.ai ? [{ text: `${a.rulesDfte.toFixed(1)} without AI review`,
+            tip: `What the simple line-counting rules would say on their own. They overcount, because AI writes long, repetitive code. The AI review judges how hard each task really was, which brought it to ${a.dfte.toFixed(1)}.` }] : []),
+        ],
+        split: Object.keys(data.purposes).filter((k) => a.by[k] >= 0.05).map((k) => ({
+          text: `${a.by[k].toFixed(1)} ${data.purposes[k].toLowerCase()}`,
+          tip: { project: "Work for real projects and customers: building, documents, demos, proofs of concept.",
+                 learning: "Asking the AI to explain or teach, the way you'd ask a senior colleague. It saved you reading and searching time, so it counts.",
+                 admin: "Configuring and fixing your own tools, agents and machine." }[k],
+        })),
         sentence: !a.n ? `No tasks in ${monthName(S.month)}.`
           : a.dfte < 0.75 ? `${who} about ${Math.round(a.dfte * 100)}% of a full-time person${isLatest() ? " so far this month" : ""}.`
           : `${who} like having ${WORDS[r] || r} extra ${r === 1 ? "person" : "people"} on the team${isLatest() ? " so far this month" : ""}.`,
@@ -462,9 +494,10 @@
     $("#h-eyebrow").textContent = h.eyebrow;
     $("#h-unit").textContent = h.unit;
     if (animate) scramble($("#h-dfte"), h.big); else $("#h-dfte").textContent = h.big;
-    $("#h-range").textContent = h.range;
-    $("#h-split").textContent = h.split || "";
-    $("#h-split").hidden = !h.split;
+    explained($("#h-range"), h.range);
+    explained($("#h-split"), h.split || []);
+    $("#h-split").hidden = !(h.split || []).length;
+    $("#h-tip").hidden = true;
     $("#h-sentence").textContent = h.sentence;
     $("#h-filter").hidden = !S.agent;
     if (S.agent) $("#h-filter-name").textContent = AG[S.agent].name;
