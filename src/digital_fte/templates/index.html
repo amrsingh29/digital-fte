@@ -21,6 +21,10 @@
         <button type="button" data-view="dfte" aria-pressed="true">DFTE</button>
         <button type="button" data-view="activity" aria-pressed="false">Activity</button>
       </div>
+      <div class="seg mode" role="group" aria-label="Colours">
+        <button type="button" data-mode="mono" aria-pressed="true">Mono</button>
+        <button type="button" data-mode="color" aria-pressed="false">Color</button>
+      </div>
       <label class="sel"><span class="sr">Month</span><select id="month"></select></label>
       <button class="ghost" id="theme" type="button">Dark</button>
     </div>
@@ -32,10 +36,6 @@
     <div class="stage" id="stage">
       <canvas id="orbit" aria-hidden="true"></canvas>
       <div class="pills" id="pills"></div>
-      <div class="mode" role="group" aria-label="Art style">
-        <button type="button" data-mode="mono" aria-pressed="true">Mono</button>
-        <button type="button" data-mode="color" aria-pressed="false">Color</button>
-      </div>
     </div>
     <aside class="headline">
       <div class="eyebrow" id="h-eyebrow">Digital FTE</div>
