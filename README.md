@@ -33,8 +33,7 @@ Everything runs on your Mac. Your transcripts never leave it.
 
 ## What you get
 
-- **One headline number:** your Digital FTE for the month, with a low–high range
-  and the split between project work, general learning, and setup & admin.
+- **One headline number:** your Digital FTE for the month, with a low–high range.
 - **Proof behind it:** every task is listed with the evidence its estimate came
   from (lines written, files read, commands run) and, when AI is on, a
   one-sentence reason. Click any task to correct it.
@@ -179,9 +178,9 @@ Hover over (or tap) any number on the dashboard to see its definition.
 
 | Number | Meaning |
 |---|---|
-| **Range** | DFTE using the low and high estimate of every task |
-| **Rules only** | DFTE before AI review, for comparison |
-| **Gross** | DFTE without subtracting your own time |
+| **Likely** (under the headline) | DFTE using the low and high estimate of every task |
+| **Without AI review** (Trend chart, dotted) | DFTE from the rules alone, for comparison |
+| **Before your own time** (Trend chart, dashed) | DFTE without subtracting your own time |
 | **Leverage** | Hours of work delivered for every hour you spent |
 | **Cost per DFTE** | What your agents cost per month ÷ DFTE. The current month counts only the days so far. Compared with the average monthly cost of a person in the roles the work needed. |
 | **Keep rate** | Share of the agents' output you actually used |

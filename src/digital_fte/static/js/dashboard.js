@@ -180,7 +180,7 @@
   /* ---------- state ---------- */
   // ?task=<id> opens one task straight away (handy to bookmark or send to yourself).
   const linkedTask = new URLSearchParams(location.search).get("task");
-  const S = { view: store.get("view", "dfte"), editing: null, allProjects: false, tip: null, focusTask: linkedTask, month: null, agent: null, cat: null, showAll: false, mode: store.get("mode", "mono") };
+  const S = { view: store.get("view", "dfte"), editing: null, allProjects: false, tip: null, focusTask: linkedTask, month: null, agent: null, cat: null, showAll: false, mode: store.get("mode", "color") };
   let data = null, AG = {}, enabled = {};
 
   const pickAgent = (id) => { if (!enabled[id]) return; S.agent = S.agent === id ? null : id; S.showAll = false; render(); };
@@ -325,17 +325,8 @@
         range: [
           { text: `likely ${a.dfteLo.toFixed(1)}–${a.dfteHi.toFixed(1)}`,
             tip: `How sure the estimate is. Every task has a low and a high estimate: all the low ones add up to ${a.dfteLo.toFixed(1)}, all the high ones to ${a.dfteHi.toFixed(1)}. The real value is most likely near ${a.dfte.toFixed(1)}.` },
-          { text: `${a.gross.toFixed(1)} before your own time`,
-            tip: `The total before subtracting the time you spent writing prompts and reading replies. The difference, ${Math.max(0, a.gross - a.dfte).toFixed(1)}, is the part you did yourself.` },
-          ...(a.ai ? [{ text: `${a.rulesDfte.toFixed(1)} without AI review`,
-            tip: `What the simple line-counting rules would say on their own. They overcount, because AI writes long, repetitive code. The AI review judges how hard each task really was, which brought it to ${a.dfte.toFixed(1)}.` }] : []),
         ],
-        split: Object.keys(data.purposes).filter((k) => a.by[k] >= 0.05).map((k) => ({
-          text: `${a.by[k].toFixed(1)} ${data.purposes[k].toLowerCase()}`,
-          tip: { project: "Work for real projects and customers: building, documents, demos, proofs of concept.",
-                 learning: "Asking the AI to explain or teach, the way you'd ask a senior colleague. It saved you reading and searching time, so it counts.",
-                 admin: "Configuring and fixing your own tools, agents and machine." }[k],
-        })),
+        // "Before your own time" and "without AI review" live in the Trend chart; the purpose split in By project.
         sentence: !a.n ? `No tasks in ${monthName(S.month)}.`
           : a.dfte < 0.75 ? `${who} about ${Math.round(a.dfte * 100)}% of a full-time person${isLatest() ? " so far this month" : ""}.`
           : `${who} like having ${WORDS[r] || r} extra ${r === 1 ? "person" : "people"} on the team${isLatest() ? " so far this month" : ""}.`,
@@ -357,7 +348,7 @@
           "How much of the agents' work you actually used: hours kept ÷ hours produced. Lower means more output was thrown away or redone."],
       ];
     },
-    legend: () => `<span><i class="sw solid"></i>Net DFTE</span><span><i class="sw band"></i>Range</span><span><i class="sw dash"></i>Gross</span><span><i class="sw dot"></i>Rules only</span>`,
+    legend: () => `<span><i class="sw solid"></i>Net DFTE</span><span><i class="sw band"></i>Range</span><span><i class="sw dash"></i>Before your own time</span><span><i class="sw dot"></i>Without AI review</span>`,
     chart(v) {
       const rows = data.months.map((m) => DFTE.agg(DFTE.items(m)));
       const idx = data.months.indexOf(S.month);
@@ -365,7 +356,7 @@
       return {
         yFmt: (x) => x.toFixed(1),
         tooltip: (i) => { const r = rows[i], m = data.months[i], c = costFor(m);
-          return `<b>${monthName(m)}</b><br>Net ${r.dfte.toFixed(2)} DFTE (${r.dfteLo.toFixed(1)}–${r.dfteHi.toFixed(1)})<br>Rules only ${r.rulesDfte.toFixed(2)} · gross ${r.gross.toFixed(2)}` +
+          return `<b>${monthName(m)}</b><br>Net ${r.dfte.toFixed(2)} DFTE (${r.dfteLo.toFixed(1)}–${r.dfteHi.toFixed(1)})<br>Before your own time ${r.gross.toFixed(2)}<br>Without AI review ${r.rulesDfte.toFixed(2)}` +
             `<br>Cost per DFTE ${r.dfte ? money(c / r.dfte) : "–"}<br>${r.n} tasks · ${r.ai} AI-estimated`; },
         boundaryGap: false,
         series: [
@@ -644,8 +635,6 @@
     $("#h-unit").textContent = h.unit;
     if (animate) scramble($("#h-dfte"), h.big); else $("#h-dfte").textContent = h.big;
     explained($("#h-range"), h.range);
-    explained($("#h-split"), h.split || []);
-    $("#h-split").hidden = !(h.split || []).length;
     setTip(S.tip);   // keep an open explanation open (with fresh numbers) across refreshes
     $("#h-sentence").textContent = h.sentence;
     $("#h-filter").hidden = !S.agent;
@@ -801,7 +790,7 @@
     if (!data.months.includes(S.month)) S.month = data.months.at(-1);
     $("#month").innerHTML = data.months.slice().reverse().map((m) => `<option value="${m}">${monthName(m)}</option>`).join("");
     $("#month").value = S.month;
-    document.querySelectorAll(".seg button").forEach((b) => b.setAttribute("aria-pressed", b.dataset.view === S.view));
+    document.querySelectorAll("[data-view]").forEach((b) => b.setAttribute("aria-pressed", b.dataset.view === S.view));
     if (!data.months.length) { $("#banner").textContent = "No sessions found yet. Check the agent paths in Settings, then Rescan."; renderAgents(); return; }
     render(animate);
     if (linked && !load.scrolled) { load.scrolled = true; $("#task-rows").scrollIntoView({ block: "start" }); }
@@ -814,10 +803,10 @@
   /* ---------- controls ---------- */
   $("#month").addEventListener("change", (e) => { S.month = e.target.value; S.showAll = false; render(true); });
   $("#h-clear").addEventListener("click", () => { S.agent = null; render(); });
-  document.querySelectorAll(".seg button").forEach((b) => b.addEventListener("click", () => {
+  document.querySelectorAll("[data-view]").forEach((b) => b.addEventListener("click", () => {
     if (S.view === b.dataset.view) return;
     S.view = b.dataset.view; store.set("view", S.view); S.cat = S.category = S.day = null; S.showAll = false;
-    document.querySelectorAll(".seg button").forEach((x) => x.setAttribute("aria-pressed", x.dataset.view === S.view));
+    document.querySelectorAll("[data-view]").forEach((x) => x.setAttribute("aria-pressed", x.dataset.view === S.view));
     render(true);
   }));
   $("#rescan").addEventListener("click", async () => {

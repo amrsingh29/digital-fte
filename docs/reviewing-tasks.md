@@ -237,6 +237,5 @@ to check the biggest tasks.
   stays attached.
 - Corrections never leave your Mac. The shared summary page shows only totals,
   and says how many tasks you reviewed.
-- Rules and AI estimates are kept alongside your corrections. The headline's
-  *without AI review* number and the trend chart's dotted line show the rules
-  estimate, so the effect of the review is always visible.
+- Rules and AI estimates are kept alongside your corrections. The trend chart's
+  dotted *Without AI review* line shows the rules estimate, so the effect of the review is always visible.
