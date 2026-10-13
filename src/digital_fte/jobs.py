@@ -5,8 +5,9 @@
   - every day at a set time;
   - on wake, if the Mac was asleep at that time (launchd runs a missed
     calendar job once when the Mac wakes, however many days were missed);
-  - at login, if the Mac was shut down; --if-older-than stops this from
-    re-running when you log in again the same day.
+  - at login, if the Mac was shut down.
+Every run is skipped if a scan happened in the last SKIP_WITHIN_HOURS (the
+dashboard server also scans), so logging in twice in a row doesn't rescan.
 Missing a day loses nothing: the next run reads everything since the last one.
 """
 
@@ -27,6 +28,7 @@ from . import config
 LABEL = "local.digital-fte.refresh"
 PLIST = Path.home() / "Library" / "LaunchAgents" / f"{LABEL}.plist"
 LOG = config.HOME_DIR / "refresh.log"
+SKIP_WITHIN_HOURS = 2   # short: a scan is cheap, and a long window skipped the daily run
 
 
 @contextmanager
@@ -86,7 +88,7 @@ def install(at: str = "20:00") -> Path:
     config.HOME_DIR.mkdir(parents=True, exist_ok=True)
     plist = {
         "Label": LABEL,
-        "ProgramArguments": [sys.executable, "-m", "digital_fte", "refresh", "--if-older-than", "12"],
+        "ProgramArguments": [sys.executable, "-m", "digital_fte", "refresh", "--if-older-than", str(SKIP_WITHIN_HOURS)],
         "StartCalendarInterval": {"Hour": hour, "Minute": minute},
         "RunAtLoad": True,                 # catch up at login after the Mac was shut down
         "StandardOutPath": str(LOG),

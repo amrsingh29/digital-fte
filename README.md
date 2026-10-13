@@ -302,11 +302,33 @@ progress.
 |---|---|
 | on | it runs at that time, at low priority |
 | asleep (lid closed) | it runs as soon as the Mac wakes; several missed days count as one run |
-| shut down | it runs when you log in, unless it already ran in the last 12 hours |
+| shut down | it runs when you log in |
+
+Each run is skipped if the app already scanned in the last 2 hours (the
+dashboard scans when it starts and when you click Rescan), so logging in several
+times a day doesn't repeat it.
 
 Missed days lose nothing. Agents keep their history, and the next run catches
 up. Some agents delete old history (Claude Code removes transcripts after about
 30 days by default), so the app keeps every session it has ever read.
+
+### Run the refresh yourself
+
+You don't have to wait for the scheduled time.
+
+| To | Run |
+|---|---|
+| Refresh now (scan + AI estimates) | `.venv/bin/fte refresh` |
+| Run the scheduled job now, exactly as macOS would | `launchctl kickstart -k gui/$(id -u)/local.digital-fte.refresh` |
+| See whether the job is set up, and its last run | `.venv/bin/fte schedule status` |
+| Follow the job's log | `tail -f ~/.digital-fte/refresh.log` |
+| Change the time, e.g. to 6:30 pm | `.venv/bin/fte schedule install --at 18:30` |
+| Stop the daily refresh | `.venv/bin/fte schedule remove` |
+
+`fte refresh` always runs. The scheduled job skips itself if a scan happened in
+the last 2 hours; to apply the same rule by hand, use
+`fte refresh --if-older-than 2`. Clicking **Rescan** in the dashboard scans
+straight away, and new tasks are then estimated in the background.
 
 ### 9. Optional: a shorter command
 
