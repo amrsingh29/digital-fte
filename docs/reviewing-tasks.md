@@ -57,12 +57,14 @@ From top to bottom:
 
 ## What you can change
 
-### How long without AI? (the size buttons)
+### How long without AI? (sizes)
 
-The quickest way to correct a task. Sizes are easier to judge than hours. Click
-the one that fits; it fills in the hours for you.
+The quickest way to correct a task. Sizes are easier to judge than hours. Pick
+the one that fits from the list; it fills in the hours for you. If you type
+hours yourself, the list shows the matching size, or *Pick a size…* when none
+matches.
 
-| Button | Means | Hours |
+| Size | Means | Hours |
 |---|---|---|
 | **XS** | under an hour | 0.5 |
 | **S** | a couple of hours | 2 |
@@ -78,7 +80,7 @@ writing, testing and polishing?
 
 ### Hours a person would need
 
-The same number the size buttons fill in. Type an exact value if you know it.
+The same number the size list fills in. Type an exact value if you know it.
 
 ### Keep factor
 
@@ -136,7 +138,10 @@ abandoned, chit-chat. The task stays in the list but adds nothing.
 
 ### Save, Reset to estimate, Close
 
-- **Save** keeps your changes. The headline, charts and totals update at once.
+- **Save** keeps your changes. A short *Saved* tag appears on the task; it says
+  *Saved · will guide the AI on new tasks* when you changed its purpose,
+  category or roles (see [How the app learns](#how-the-app-learns)). The editor
+  also says this, under the roles, before you save. The headline, charts and totals update at once.
 - **Reset to estimate** removes your correction and goes back to the AI's (or the
   rules') estimate. It only appears on edited tasks.
 - **Close** folds the editor without saving.

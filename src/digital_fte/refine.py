@@ -163,8 +163,12 @@ def finalize(con: sqlite3.Connection, cfg: dict) -> tuple[list[dict], dict]:
         t["group"] = (t["project"] if t["project"] != NO_PROJECT else "Unassigned") if t["purpose"] == "project" \
             else PURPOSES[t["purpose"]]
 
+    learn_from = [f for f in cfg.get("ai", {}).get("learn_from", ai.LEARNABLE) if f in ai.LEARNABLE]
     summary = {"service": name, "model": model, "estimated": sum(1 for t in tasks if t["ai"]),
-               "corrected": len(corr), "learned": learned,
+               "corrected": len(corr), "learned": learned, "learn_from": learn_from,
+               # corrections the AI can be shown as examples (it sees up to ai.N_EXAMPLES of them)
+               "guiding": min(ai.N_EXAMPLES, sum(1 for c in corr.values() if not c["excluded"]
+                                                 and any(c[f] for f in learn_from))),
                "failed": con.execute("select count(*) from ai_estimates where service = ? and model = ? and error is not null",
                                      (name, model)).fetchone()[0] if act else 0}
     return tasks, summary

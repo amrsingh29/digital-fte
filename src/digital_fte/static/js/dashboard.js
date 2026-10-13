@@ -351,7 +351,7 @@
         rows: (S.showAll ? ts : ts.slice(0, 12)).map((t) => `
           <tr class="task${t.excluded ? " excluded" : ""}${S.editing === t.id ? " open" : ""}" data-id="${esc(t.id)}" tabindex="0">
             <td class="date">${dayName(t.date)}</td>
-            <td><div class="title">${esc(t.title)}${t.correction ? ' <span class="tag-sm">edited</span>' : ""}${t.excluded ? ' <span class="tag-sm">not counted</span>' : ""}</div>
+            <td><div class="title">${esc(t.title)}${t.correction ? ' <span class="tag-sm">edited</span>' : ""}${S.flash?.id === t.id ? ` <span class="tag-sm flash" role="status">${esc(S.flash.text)}</span>` : ""}${t.excluded ? ' <span class="tag-sm">not counted</span>' : ""}</div>
               <div class="proj">${esc(t.project)} · ${t.prompts} prompts · ${t.actions} actions</div><div class="why">${esc(why(t.evidence))}</div></td>
             <td class="ag hide-sm">${dot(t.agent)}${esc(AG[t.agent].name)}</td>
             <td class="hide-sm">${esc(t.category)}<span class="rng">${esc((t.roles || []).map((r) => t.roles.length > 1 ? `${r.role} ${Math.round(r.share * 100)}%` : r.role).join(" · ") || t.role)}</span></td>
@@ -398,7 +398,8 @@
     const learned = Object.entries(data.ai.learned || {}).map(([c, f]) => `${c} ×${f}`).join(", ");
     return `${svc.name} · ${svc.model} estimated ${int(data.ai.estimated)} of ${int(data.tasks.length)} tasks` +
       (data.ai.failed ? ` · ${data.ai.failed} failed` : "") + ` · ${data.ai.corrected} corrected by you` +
-      (learned ? ` · learned: ${learned}` : "") + ` · last scan ${lastScan()}`;
+      (learned ? ` · learned: ${learned}` : "") +
+      (data.ai.guiding && learnList().length ? ` · AI guided by ${data.ai.guiding} of your corrections` : "") + ` · last scan ${lastScan()}`;
   }
 
   function editor(t) {
@@ -410,15 +411,14 @@
       <p class="note">Rules: ${fmtH(t.rules.h)} · K ${t.rules.k.toFixed(2)} · ${esc(why(t.evidence))}</p>
       <p class="note">K: ${esc(t.k_basis)}${t.learned ? ` · learned factor ×${t.learned} for ${esc(t.category)}` : ""}</p>
       <form class="fix" data-id="${esc(t.id)}">
-        <div class="sizes" role="group" aria-label="Pick a size">
-          <span class="note">How long without AI?</span>
-          ${SIZES.map(([k, h, l]) => `<button type="button" class="chip size" data-h="${h}" title="${esc(l)} · ${h} h">${k}</button>`).join("")}
-        </div>
+        <label title="How long a competent person would need to produce the same result without AI, including looking things up, testing and polishing">
+          How long without AI? <select name="size">${sizeOptions(c.h ?? t.h)}</select></label>
         <label>Hours a person would need <input name="h" type="number" min="0" step="any" value="${c.h ?? t.h}"></label>
         <label>Keep factor <input name="k" type="number" min="0" max="1" step="any" value="${c.k ?? t.k}"></label>
         <label>Purpose <select name="purpose">${Object.entries(data.purposes).map(([k, l]) => `<option value="${k}"${k === t.purpose ? " selected" : ""}>${esc(l)}</option>`).join("")}</select></label>
         <label>Category <select name="category">${opts}</select></label>
         ${roleFields(t)}
+        ${learnHint()}
         <label class="chk"><input name="excluded" type="checkbox"${t.excluded ? " checked" : ""}> Not real work</label>
         <div class="acts">
           <button type="submit" class="ghost strong">Save</button>
@@ -449,6 +449,16 @@
         <span class="note">${esc(BASIS[t.roles_basis] || "")}</span>
       </div>`;
   }
+  // Which of your corrections the AI is shown as examples ([ai] learn_from), in plain words.
+  const LEARN_WORDS = { purpose: "purpose", category: "category", roles: "roles" };
+  const learnList = () => (data.ai.learn_from || []).filter((f) => LEARN_WORDS[f]).map((f) => LEARN_WORDS[f]);
+  const andJoin = (xs) => (xs.length > 1 ? xs.slice(0, -1).join(", ") + " and " + xs.at(-1) : xs[0] || "");
+  function learnHint() {
+    const xs = learnList();
+    return xs.length && activeSvc()
+      ? `<p class="note learn-hint">Your changes to ${andJoin(xs)} guide the AI on future tasks: your recent ones are shown to it as examples. Hours are learned separately and never sent. <span title="Set learn_from in ~/.digital-fte/config.toml; [] turns it off">Change in config.toml</span></p>`
+      : "";
+  }
   const mkRoles = (r1, r2, s) =>
     r2 && r2 !== r1 && s < 1 ? [{ role: r1, share: s }, { role: r2, share: Math.round((1 - s) * 100) / 100 }] : [{ role: r1, share: 1 }];
   const rolesFrom = (f) => mkRoles(f.get("role1"), f.get("role2"), parseFloat(f.get("split")));
@@ -462,7 +472,9 @@
     }
   }
 
-  // Sizes are easier to judge than hours; each fills in the hours field.
+  // Sizes are easier to judge than hours; picking one fills in the hours field.
+  const sizeOptions = (h) => `<option value="">Pick a size…</option>` +
+    SIZES.map(([k, v, l]) => `<option value="${v}"${Math.abs(v - h) < 0.001 ? " selected" : ""}>${k} · ${l} · ${v} h</option>`).join("");
   const SIZES = [["XS", 0.5, "under an hour"], ["S", 2, "a couple of hours"], ["M", 6, "half a day to a day"],
                  ["L", 20, "2–3 days"], ["XL", 35, "about a week"], ["XXL", 70, "2 weeks"], ["Month", 140, "a month"]];
 
@@ -480,7 +492,12 @@
     };
     const r = await fetch(`/api/tasks/${encodeURIComponent(id)}/correction`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
     if (!r.ok) { alert((await r.json()).detail || "Couldn't save"); return; }
+    const changed = { purpose: f.get("purpose") !== t.purpose, category: f.get("category") !== t.category,
+                      roles: JSON.stringify(rolesFrom(f)) !== f.get("roles0") };
+    const guides = activeSvc() && (data.ai.learn_from || []).some((k) => changed[k]);
     S.editing = null;
+    S.flash = { id, text: guides ? "Saved · will guide the AI on new tasks" : "Saved" };
+    setTimeout(() => { S.flash = null; if (!S.editing) renderTable(); }, 4000);
     await load();
   }
 
@@ -627,13 +644,6 @@
     renderTable();
   });
   $("#task-rows").addEventListener("click", (e) => {
-    const size = e.target.closest(".size");
-    if (size) {
-      const form = size.closest(".editor").querySelector("form");
-      form.elements.h.value = size.dataset.h;
-      size.parentElement.querySelectorAll(".size").forEach((b) => b.setAttribute("aria-pressed", b === size));
-      return;
-    }
     const split = e.target.closest("[data-split]");
     if (split) {
       const form = split.closest("form"), s = parseFloat(split.dataset.split);
@@ -658,6 +668,10 @@
   $("#task-rows").addEventListener("submit", (e) => { e.preventDefault(); saveFix(e.target); });
   $("#task-rows").addEventListener("change", (e) => {
     if (e.target.name === "role2" && !e.target.value) showSecond(e.target.form, false);
+    if (e.target.name === "size" && e.target.value) e.target.form.elements.h.value = e.target.value;
+  });
+  $("#task-rows").addEventListener("input", (e) => {   // typed hours: show the matching size, if any
+    if (e.target.name === "h") e.target.form.elements.size.innerHTML = sizeOptions(parseFloat(e.target.value));
   });
 
   function renderAgents() {
