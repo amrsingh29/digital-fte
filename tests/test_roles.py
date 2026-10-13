@@ -157,3 +157,12 @@ def test_existing_ai_section_gains_learn_from(tmp_path, monkeypatch):
     cfg = config.load()
     assert cfg["ai"]["learn_from"] == ["roles", "purpose", "category"] and cfg["ai"]["use"] == "off"
     assert path.read_text().count("learn_from") == 1
+
+
+def test_redo_before_keeps_old_estimates_until_replaced(tmp_path):
+    import time
+    con, [tid] = setup(tmp_path)
+    add_ai(con, tid, h=4, roles=[{"role": "UX designer", "share": 1}])
+    assert ai.pending(con, "cortex", "cortex-fast", 10) == []
+    assert [r["id"] for r in ai.pending(con, "cortex", "cortex-fast", 10, redo_before=time.time() + 1)] == [tid]
+    assert final(con, tid)[0]["role"] == "UX designer"     # still shown while waiting

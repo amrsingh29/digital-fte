@@ -324,21 +324,23 @@ progress = {"running": False, "done": 0, "total": 0, "errors": 0, "last_error": 
 _lock = threading.Lock()
 
 
-def pending(con: sqlite3.Connection, name: str, model: str, limit: int) -> list[sqlite3.Row]:
-    """Tasks with no estimate from this service/model yet, whose task grew since, or
-    whose estimate predates the purpose or roles fields."""
+def pending(con: sqlite3.Connection, name: str, model: str, limit: int,
+            redo_before: float | None = None) -> list[sqlite3.Row]:
+    """Tasks with no estimate from this service/model yet, whose task grew since, whose
+    estimate predates the purpose or roles fields, or (redo_before) was made before then."""
     ensure_tables(con)
     return con.execute(
         "select t.id, t.summary, t.n_events from tasks t left join ai_estimates a "
         "on a.task_id = t.id and a.service = ? and a.model = ? "
         "where a.task_id is null or a.n_events != t.n_events or a.error is not null or a.purpose is null "
-        "or a.roles is null "
-        "order by t.started desc limit ?", (name, model, limit)).fetchall()
+        "or a.roles is null or a.created_at < ? "
+        "order by t.started desc limit ?", (name, model, redo_before or 0, limit)).fetchall()
 
 
-def run(db_path, cfg: dict, limit: int | None = None) -> dict:
+def run(db_path, cfg: dict, limit: int | None = None, redo_before: float | None = None) -> dict:
     """Estimate every pending task with the active service. Safe to call from a
-    background thread; only one run happens at a time."""
+    background thread; only one run happens at a time. `redo_before`: also re-estimate
+    tasks estimated before that time (their old estimate stays until the new one lands)."""
     act = active(cfg)
     if not act:
         return {"skipped": "AI is off"}
@@ -353,14 +355,14 @@ def run(db_path, cfg: dict, limit: int | None = None) -> dict:
         if not got:
             _lock.release()
             return {"skipped": "already running in another process"}
-        return _run(db_path, cfg, name, svc, limit)
+        return _run(db_path, cfg, name, svc, limit, redo_before)
 
 
-def _run(db_path, cfg: dict, name: str, svc: dict, limit: int | None) -> dict:
+def _run(db_path, cfg: dict, name: str, svc: dict, limit: int | None, redo_before: float | None = None) -> dict:
     try:
         con = sqlite3.connect(db_path)
         con.row_factory = sqlite3.Row
-        todo = pending(con, name, svc["model"], limit or cfg["ai"].get("max_tasks_per_run", 400))
+        todo = pending(con, name, svc["model"], limit or cfg["ai"].get("max_tasks_per_run", 400), redo_before)
         progress.update(running=True, done=0, total=len(todo), errors=0, last_error=None, service=f"{name} · {svc['model']}")
         with ThreadPoolExecutor(max_workers=max(1, int(svc.get("parallel", 2)))) as pool:
             pause = float(svc.get("pause_seconds", 0))

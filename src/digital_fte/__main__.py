@@ -21,6 +21,7 @@ def _scan(args) -> None:
 
 
 def _estimate(args) -> None:
+    import time
     from collections import defaultdict
     from datetime import datetime
 
@@ -30,14 +31,16 @@ def _estimate(args) -> None:
     con = db.connect(config.DB_PATH)
     n = estimate.rebuild(con, cfg)
     print(f"{n} tasks")
-    if args.recheck_roles:   # e.g. after adding a role: let the AI pick again for every task
-        ai.ensure_tables(con)
-        con.execute("update ai_estimates set roles = null")
-        con.commit()
     if args.ai or args.recheck_roles:
         act = ai.active(cfg)
         print(f"estimating with {act[0]} · {act[1].get('model')}…" if act else "AI is off (use = \"off\")")
-        print(ai.run(config.DB_PATH, cfg, limit=args.limit))
+        # --recheck-roles (e.g. after changing the role catalog): every task is sent again; each keeps
+        # its current estimate until the new one arrives, so the dashboard never falls back meanwhile.
+        out = ai.run(config.DB_PATH, cfg, limit=args.limit, redo_before=time.time() if args.recheck_roles else None)
+        print(out)
+        if "already running" in str(out.get("skipped", "")):
+            print("Another AI run is in progress (usually the dashboard's). Nothing was changed; run this again "
+                  "when it finishes (Settings → AI estimates in the dashboard shows its progress).")
     tasks, summary = refine.finalize(con, cfg)
     enabled = {a for a, c in cfg["agents"].items() if c.get("enabled")}
     hpf = cfg["dfte"]["hours_per_fte_month"]
