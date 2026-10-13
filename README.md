@@ -155,6 +155,10 @@ kind**: the job roles the same work would have needed.
   consultant, analysis → business analyst, learning → researcher / advisor,
   setup → DevOps / IT admin.
 - **Roles never change the hours.** They only label (and later, value) them.
+- **You can correct them** in the task editor: one role, or two with a 70/30,
+  50/50 or 30/70 split. Your recent corrections of roles, purpose and category
+  are shown to the AI as examples, so it follows your way of classifying on new
+  tasks (see [Reviewing and correcting tasks](docs/reviewing-tasks.md#how-the-app-learns)).
 
 The default catalog has 10 roles: full-stack developer, front-end developer,
 data / AI engineer, DevOps / IT admin, UX designer, technical writer, business
@@ -451,6 +455,7 @@ Each line has a comment explaining it. The main ones:
 | | `admin_weight` | 1.0 | How much setup & admin counts (0 to 1) |
 | `[ai]` | `use` | cortex | Active AI service: cortex, claude, openai, gemini, local or off |
 | | `auto` | true | Estimate new tasks automatically after each refresh |
+| | `learn_from` | roles, purpose, category | Which of your corrections are shown to the AI as examples. `[]` = none |
 | `[ai.*]` | `model`, `base_url`, `key_keychain`, `key_env` | per service | How to reach each AI service |
 | | `parallel`, `pause_seconds` | 1, 3 for Cortex | Pace of AI requests, to leave room for your own agents |
 | `[[roles]]` | `name`, `about` | 10 roles | The virtual team's role catalog. `about` tells the AI what a role covers |

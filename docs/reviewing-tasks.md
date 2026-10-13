@@ -112,6 +112,23 @@ against, and which group the app learns from.
 | documentation, demo prep | a presales consultant |
 | research, analysis | an analyst |
 
+### Roles
+
+Which job roles the work needed: one, or two with a split of the hours. They
+decide where the task's hours go in the **Virtual team** card. Roles never change
+the hours themselves.
+
+- **Role:** pick from your catalog (the 10 defaults, or your own in `config.toml`).
+- **+ Add a second role** when part of the work needed different expertise, then
+  pick a **split**: 70/30, 50/50 or 30/70 (first role / second role). **100/0**
+  removes the second role again.
+- The note next to the roles says where they came from: **AI's pick**, **first
+  guess from the category** (the AI hasn't reviewed the task yet) or **yours**.
+
+Example: the AI tagged *"Demo dashboard for customer meeting"* as full-stack
+developer because it saw Python files. You know it was demo work, so you set
+**Presales consultant** + **Full-stack developer** at **70/30**.
+
 ### Not real work
 
 Tick it for things that shouldn't count at all: a test run, a question you
@@ -131,6 +148,10 @@ following the app's estimate.
 
 ## How the app learns
 
+The app learns from your corrections in two separate ways.
+
+### Hours: by arithmetic
+
 Once you've corrected the hours on **3 or more tasks in the same category**, the
 app works out your typical adjustment for that category and applies it to every
 task in it that you haven't corrected.
@@ -142,6 +163,31 @@ task in it that you haven't corrected.
 - The adjustment is kept between ×0.33 and ×3, so a few unusual corrections
   can't swing everything.
 - Your own corrections always win over the learned factor.
+
+### Roles, purpose and category: by example
+
+Your recent corrections of **roles, purpose and category** are shown to the AI
+as examples each time it judges a new task, like giving a new colleague a few
+worked examples:
+
+> *This person corrected these tasks before:*
+> *"Demo dashboard for customer meeting" → project work · demo prep · 70% Presales consultant, 30% Full-stack developer*
+
+A new task like *"Chart page for the customer demo"* then gets the same treatment
+without you touching it.
+
+- Up to **10 examples**, taken in turn from project work, learning and admin, so
+  one busy week of one kind doesn't crowd out the rest.
+- **Hours are never sent as examples.** They're learned by the arithmetic above,
+  so the AI isn't nudged twice in the same direction.
+- Tasks marked **Not real work** aren't used, and a task never sees its own
+  correction.
+- Examples affect **new tasks**. To re-judge older ones, run
+  `fte estimate --recheck-roles`.
+- It's a nudge, not a rule: the AI follows your examples only where the work is
+  similar. Correct any it still gets wrong; that becomes an example too.
+- To turn it off, or limit it, edit `learn_from` in `~/.digital-fte/config.toml`
+  (`learn_from = []` turns it off).
 
 ---
 
@@ -168,8 +214,8 @@ A button to estimate a whole project at once is planned.
 1. Open the **DFTE** view for the current month.
 2. Correct the **5 biggest tasks** by net hours: these move the number most.
 3. Correct **3 small ones** at random: the AI tends to overestimate small tasks.
-4. Check **purposes**: is a general question filed as project work? Is a tool
-   setup filed as a project?
+4. Check **purposes and roles**: is a general question filed as project work? Is
+   demo work tagged as pure development?
 5. Tick **Not real work** on anything that shouldn't count.
 
 After two or three weeks the learned factors settle, and you'll mostly only need

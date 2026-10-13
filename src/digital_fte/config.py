@@ -31,6 +31,9 @@ AI_DEFAULT = """\
 use = "cortex"
 auto = true                    # estimate new tasks automatically after each scan
 max_tasks_per_run = 400
+# Which of your corrections the AI learns from: recent ones are shown to it as
+# examples of how you classify work. Remove an item to stop; [] = no examples.
+learn_from = ["roles", "purpose", "category"]
 
 [ai.cortex]
 api = "openai"                 # OpenAI-compatible chat completions
@@ -198,6 +201,9 @@ def ensure() -> None:
     elif not re.search(r"^use\s*=", ai.group(0), re.M):
         # Phase 3 had one [ai] table; replace it with the per-service layout.
         text = text[: ai.start()] + AI_DEFAULT + text[ai.end():]
+    elif not re.search(r"^learn_from\s*=", ai.group(0), re.M):
+        line = re.search(r"^# Which of your corrections.*?^learn_from[^\n]*\n", AI_DEFAULT, re.M | re.S).group(0)
+        text = re.sub(r"^(max_tasks_per_run[^\n]*\n)", lambda m: m.group(1) + line, text, count=1, flags=re.M)
     if not re.search(r"^\[\[roles\]\]", text, re.M):
         text = text.rstrip() + "\n\n" + ROLES_DEFAULT
     if text != CONFIG_PATH.read_text():

@@ -189,6 +189,7 @@ class Correction(BaseModel):
     k: float | None = None
     category: str | None = None
     purpose: str | None = None
+    roles: list[dict] | None = None     # [{"role": name, "share": 0.7}, ...], one or two from the catalog
     excluded: bool = False
 
 
@@ -202,9 +203,15 @@ def correct(task_id: str, body: Correction):
         raise HTTPException(400, "unknown category")
     if body.purpose and body.purpose not in PURPOSES:
         raise HTTPException(400, "unknown purpose")
+    roles = None
+    if body.roles:
+        names = [r["name"] for r in config.load()["roles"]]
+        if any(str(r.get("role")) not in names for r in body.roles) or len(body.roles) > 2:
+            raise HTTPException(400, "pick one or two roles from the catalog")
+        roles = ai.clean_roles(body.roles, names)
     con = db.connect(config.DB_PATH)
     try:
-        refine.save_correction(con, task_id, body.h, body.k, body.category, body.excluded, body.purpose)
+        refine.save_correction(con, task_id, body.h, body.k, body.category, body.excluded, body.purpose, roles)
     finally:
         con.close()
     return {"ok": True}

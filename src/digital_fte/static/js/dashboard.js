@@ -418,6 +418,7 @@
         <label>Keep factor <input name="k" type="number" min="0" max="1" step="any" value="${c.k ?? t.k}"></label>
         <label>Purpose <select name="purpose">${Object.entries(data.purposes).map(([k, l]) => `<option value="${k}"${k === t.purpose ? " selected" : ""}>${esc(l)}</option>`).join("")}</select></label>
         <label>Category <select name="category">${opts}</select></label>
+        ${roleFields(t)}
         <label class="chk"><input name="excluded" type="checkbox"${t.excluded ? " checked" : ""}> Not real work</label>
         <div class="acts">
           <button type="submit" class="ghost strong">Save</button>
@@ -425,6 +426,40 @@
           <button type="button" class="ghost" data-act="close">Close</button>
         </div>
       </form></div></td></tr>`;
+  }
+
+  // Roles: one or two from the catalog; with two, a preset split of the hours.
+  const SPLITS = [[1, "100/0"], [0.7, "70/30"], [0.5, "50/50"], [0.3, "30/70"]];
+  const BASIS = { you: "yours", ai: "AI's pick", rules: "first guess from the category" };
+  function roleFields(t) {
+    const [r1, r2] = t.roles || [];
+    const share = r2 ? SPLITS.slice(1).reduce((b, [s]) => (Math.abs(s - r1.share) < Math.abs(b - r1.share) ? s : b), 0.7) : 0.7;
+    const options = (sel, blank) => (blank ? `<option value="">none</option>` : "") +
+      data.roles.map((r) => `<option${r.name === sel ? " selected" : ""} title="${esc(r.about)}">${esc(r.name)}</option>`).join("");
+    return `<div class="role-fix">
+        <label>Role <select name="role1">${options(r1?.role)}</select></label>
+        <label class="role2"${r2 ? "" : " hidden"}>Second role <select name="role2">${options(r2?.role, true)}</select></label>
+        <button type="button" class="linkish" data-act="add-role"${r2 ? " hidden" : ""}>+ Add a second role</button>
+        <div class="sizes split"${r2 ? "" : " hidden"} role="group" aria-label="Split the hours">
+          <span class="note">Split</span>
+          ${SPLITS.map(([s, l]) => `<button type="button" class="chip" data-split="${s}" aria-pressed="${s === share}">${l}</button>`).join("")}
+          <input type="hidden" name="split" value="${share}">
+        </div>
+        <input type="hidden" name="roles0" value="${esc(JSON.stringify(mkRoles(r1?.role, r2?.role, share)))}">
+        <span class="note">${esc(BASIS[t.roles_basis] || "")}</span>
+      </div>`;
+  }
+  const mkRoles = (r1, r2, s) =>
+    r2 && r2 !== r1 && s < 1 ? [{ role: r1, share: s }, { role: r2, share: Math.round((1 - s) * 100) / 100 }] : [{ role: r1, share: 1 }];
+  const rolesFrom = (f) => mkRoles(f.get("role1"), f.get("role2"), parseFloat(f.get("split")));
+  function showSecond(form, on) {
+    form.querySelector(".role2").hidden = !on;
+    form.querySelector(".split").hidden = !on;
+    form.querySelector('[data-act="add-role"]').hidden = on;
+    if (!on) form.elements.role2.value = "";
+    else if (!form.elements.role2.value) {
+      form.elements.role2.value = data.roles.find((r) => r.name !== form.elements.role1.value)?.name || "";
+    }
   }
 
   // Sizes are easier to judge than hours; each fills in the hours field.
@@ -439,6 +474,8 @@
       k: Math.abs(k - t.k) > 0.001 || t.correction?.k != null ? k : null,
       category: f.get("category") !== t.category || t.correction?.category ? f.get("category") : null,
       purpose: f.get("purpose") !== t.purpose || t.correction?.purpose ? f.get("purpose") : null,
+      // Only when you changed them: the editor shows an AI split like 60/40 as the nearest preset.
+      roles: JSON.stringify(rolesFrom(f)) !== f.get("roles0") || t.correction?.roles ? rolesFrom(f) : null,
       excluded: f.get("excluded") === "on",
     };
     const r = await fetch(`/api/tasks/${encodeURIComponent(id)}/correction`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
@@ -597,8 +634,17 @@
       size.parentElement.querySelectorAll(".size").forEach((b) => b.setAttribute("aria-pressed", b === size));
       return;
     }
+    const split = e.target.closest("[data-split]");
+    if (split) {
+      const form = split.closest("form"), s = parseFloat(split.dataset.split);
+      if (s === 1) { showSecond(form, false); form.elements.split.value = 0.7; return; }
+      form.elements.split.value = s;
+      split.parentElement.querySelectorAll("[data-split]").forEach((b) => b.setAttribute("aria-pressed", b === split));
+      return;
+    }
     const act = e.target.closest("[data-act]");
     if (act) {
+      if (act.dataset.act === "add-role") { showSecond(act.closest("form"), true); return; }
       const id = act.closest("form").dataset.id;
       if (act.dataset.act === "close") { S.editing = null; renderTable(); }
       if (act.dataset.act === "reset") fetch(`/api/tasks/${encodeURIComponent(id)}/correction`, { method: "DELETE" }).then(() => { S.editing = null; load(); });
@@ -610,6 +656,9 @@
   });
   $("#task-rows").addEventListener("keydown", (e) => { if (e.key === "Enter" && e.target.matches("tr.task")) e.target.click(); });
   $("#task-rows").addEventListener("submit", (e) => { e.preventDefault(); saveFix(e.target); });
+  $("#task-rows").addEventListener("change", (e) => {
+    if (e.target.name === "role2" && !e.target.value) showSecond(e.target.form, false);
+  });
 
   function renderAgents() {
     $("#agents-note").innerHTML = V().agentsNote();
@@ -711,7 +760,8 @@ AI step (${data.ai.use}): reads a short summary of each task and re-estimates H,
 
 Virtual team: the AI picks one or two roles per task from your catalog (${data.roles.length} roles), with a share
    of its hours. Role DFTE = Σ (net hours × share) ÷ ${d.hours_per_fte_month}. Until the AI has seen a task, its
-   category or purpose decides. Roles never change the hours.
+   category or purpose decides. Roles never change the hours. Your recent corrections of roles, purpose and
+   category are shown to the AI as examples (learn_from in config.toml); hours are learned by the ratio above.
 
 A task = a stretch of work in one session; a break over ${r.task_gap_minutes}m starts a new one.
 Subagent work counts toward the task that launched it. Tune any rate in ~/.digital-fte/config.toml.`;

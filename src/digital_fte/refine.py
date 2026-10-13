@@ -10,8 +10,8 @@
     5. Purpose (project work / general & learning / setup & admin): yours, else the
        AI's, else the rules'. Net hours are multiplied by that purpose's weight
        ([purposes] in config; 1.0 = count fully).
-    6. Roles (the "virtual team"): the AI's one or two roles from the catalog, else the
-       catalog's fallback role for the task's purpose or category. Roles label and value
+    6. Roles (the "virtual team"): yours, else the AI's one or two roles from the catalog,
+       else the catalog's fallback role for the task's purpose or category. Roles label and value
        the hours; they never change them.
 """
 
@@ -31,7 +31,8 @@ LEARN_MIN = 3
 
 CORRECTIONS = """
 create table if not exists corrections (
-  task_id text primary key, h real, k real, category text, excluded int default 0, updated_at real, purpose text
+  task_id text primary key, h real, k real, category text, excluded int default 0, updated_at real, purpose text,
+  roles text
 );
 """
 
@@ -39,15 +40,18 @@ create table if not exists corrections (
 def ensure_tables(con: sqlite3.Connection) -> None:
     ai.ensure_tables(con)
     con.executescript(CORRECTIONS)
-    if "purpose" not in {r[1] for r in con.execute("pragma table_info(corrections)")}:
-        con.execute("alter table corrections add column purpose text")
+    cols = {r[1] for r in con.execute("pragma table_info(corrections)")}
+    for col in ("purpose", "roles"):   # added after the first release of this table
+        if col not in cols:
+            con.execute(f"alter table corrections add column {col} text")
 
 
 def save_correction(con: sqlite3.Connection, task_id: str, h=None, k=None, category=None, excluded=False,
-                    purpose=None) -> None:
+                    purpose=None, roles=None) -> None:
     ensure_tables(con)
-    con.execute("insert or replace into corrections (task_id, h, k, category, excluded, updated_at, purpose) "
-                "values (?,?,?,?,?,?,?)", (task_id, h, k, category, int(bool(excluded)), time.time(), purpose))
+    con.execute("insert or replace into corrections (task_id, h, k, category, excluded, updated_at, purpose, roles) "
+                "values (?,?,?,?,?,?,?,?)", (task_id, h, k, category, int(bool(excluded)), time.time(), purpose,
+                                             json.dumps(roles) if roles else None))
     con.commit()
 
 
@@ -142,11 +146,12 @@ def finalize(con: sqlite3.Connection, cfg: dict) -> tuple[list[dict], dict]:
         t["h"] = round(h, 2)
         t["h_low"], t["h_high"] = round(t["h_low"], 2), round(t["h_high"], 2)
         t["roles"], t["roles_basis"] = None, "rules"
-        if e := est.get(t["id"]):
-            names = {r["name"] for r in cfg.get("roles", [])}
-            got = ai.clean_roles(json.loads(e["roles"] or "[]"), list(names))
-            if got:
-                t["roles"], t["roles_basis"] = got, "ai"
+        names = [r["name"] for r in cfg.get("roles", [])]
+        if c and c["roles"] and (got := ai.clean_roles(json.loads(c["roles"]), names)):
+            t["roles"], t["roles_basis"] = got, "you"
+            t["correction"]["roles"] = got
+        elif (e := est.get(t["id"])) and (got := ai.clean_roles(json.loads(e["roles"] or "[]"), names)):
+            t["roles"], t["roles_basis"] = got, "ai"
         if not t["roles"]:
             name_ = fallback_role(cfg.get("roles", []), t["category"], t["purpose"])
             t["roles"] = [{"role": name_, "share": 1.0}] if name_ else []

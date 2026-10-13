@@ -94,13 +94,63 @@ def ensure_tables(con: sqlite3.Connection) -> None:
             con.execute(f"alter table ai_estimates add column {col} text")
 
 
-def prompt(roles: list[dict]) -> tuple[str, dict]:
-    """System prompt and schema for this person's role catalog."""
+LEARNABLE = ("roles", "purpose", "category")
+N_EXAMPLES = 10
+
+
+def prompt(roles: list[dict], examples: list[str] = ()) -> tuple[str, dict]:
+    """System prompt and schema for this person's role catalog, plus examples of
+    how they corrected earlier tasks."""
     names = [r["name"] for r in roles]
     catalog = "\n".join(f"- {r['name']}" + (f": {r['about']}" if r["about"] else "") for r in roles)
     schema = json.loads(json.dumps(SCHEMA))
     schema["properties"]["roles"]["items"]["properties"]["role"]["enum"] = names
-    return SYSTEM + "\n\nRoles:\n" + catalog, schema
+    system = SYSTEM + "\n\nRoles:\n" + catalog
+    if examples:
+        system += ("\n\nThis person corrected how earlier tasks were classified. Follow their way of classifying "
+                   "similar work, but only where the work really is similar; judge the hours on their own:\n"
+                   + "\n".join(f"- {x}" for x in examples))
+    return system, schema
+
+
+def examples(con: sqlite3.Connection, cfg: dict) -> list[tuple[str, str]]:
+    """(task id, example line) for recent corrections of the fields in [ai] learn_from,
+    taken in turn from each purpose so one busy week of one kind doesn't crowd out the rest.
+    Hours are never included: the app learns those itself (refine.py), so the AI isn't
+    nudged twice in the same direction."""
+    from . import refine   # here, not at the top: refine imports this module
+    from .estimate import PURPOSES
+    refine.ensure_tables(con)
+    learn = [f for f in cfg["ai"].get("learn_from", LEARNABLE) if f in LEARNABLE]
+    if not learn:
+        return []
+    names = [r["name"] for r in cfg.get("roles", [])]
+    rows = con.execute(
+        "select c.task_id, c.purpose, c.category, c.roles, t.purpose as t_purpose, "
+        "coalesce((select a.title from ai_estimates a where a.task_id = c.task_id and a.title is not null "
+        "          order by a.created_at desc limit 1), t.title) as title "
+        "from corrections c join tasks t on t.id = c.task_id where not c.excluded "
+        "order by c.updated_at desc limit 200").fetchall()
+    by_purpose: dict[str, list[tuple[str, str]]] = {}
+    for r in rows:
+        parts = []
+        if "purpose" in learn and r["purpose"]:
+            parts.append(PURPOSES[r["purpose"]].lower())
+        if "category" in learn and r["category"]:
+            parts.append(r["category"])
+        if "roles" in learn and r["roles"] and (got := clean_roles(json.loads(r["roles"]), names)):
+            parts.append(", ".join(f"{round(x['share'] * 100)}% {x['role']}" if len(got) > 1 else x["role"] for x in got))
+        if parts:
+            by_purpose.setdefault(r["purpose"] or r["t_purpose"] or "project", []).append(
+                (r["task_id"], f'"{r["title"]}" → ' + " · ".join(parts)))
+    out, queues = [], list(by_purpose.values())
+    while queues and len(out) < N_EXAMPLES + 1:   # one spare: a task never sees its own correction
+        for q in list(queues):
+            if q:
+                out.append(q.pop(0))
+            else:
+                queues.remove(q)
+    return out[: N_EXAMPLES + 1]
 
 
 def clean_roles(raw, names: list[str]) -> list[dict] | None:
@@ -253,8 +303,8 @@ def _anthropic(svc: dict, user: str, system: str, schema: dict) -> dict:
     return json.loads(text)
 
 
-def estimate_one(svc: dict, summary: str, roles: list[dict]) -> dict:
-    system, schema = prompt(roles)
+def estimate_one(svc: dict, summary: str, roles: list[dict], examples: list[str] = ()) -> dict:
+    system, schema = prompt(roles, examples)
     out = (_anthropic if svc.get("api") == "anthropic" else _openai)(svc, summary, system, schema)
     try:
         h = float(out["h"])
@@ -315,13 +365,16 @@ def _run(db_path, cfg: dict, name: str, svc: dict, limit: int | None) -> dict:
         with ThreadPoolExecutor(max_workers=max(1, int(svc.get("parallel", 2)))) as pool:
             pause = float(svc.get("pause_seconds", 0))
 
-            def one(summary):
+            shown = examples(con, cfg)
+
+            def one(task_id, summary):
+                mine = [x for tid, x in shown if tid != task_id][:N_EXAMPLES]
                 try:
-                    return estimate_one(svc, summary, cfg["roles"])
+                    return estimate_one(svc, summary, cfg["roles"], mine)
                 finally:
                     time.sleep(pause)   # leave room for the person's own agents on a shared quota
 
-            futures = {pool.submit(one, t["summary"]): t for t in todo}
+            futures = {pool.submit(one, t["id"], t["summary"]): t for t in todo}
             for f in as_completed(futures):
                 t = futures[f]
                 try:
