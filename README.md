@@ -415,10 +415,10 @@ want them gone.
   option, how the app learns from your corrections, and a 10-minute weekly routine.
 - **Rescan** reads new history straight away.
 - **Settings** (at the bottom) holds the agent switches, the active AI service,
-  the refresh schedule and the link to the summary page.
+  and the refresh schedule.
 
-**Sharing with your manager.** Open *Settings → Share → Open the summary page*,
-or run:
+**Sharing with your manager.** Click **↗ Share summary** under the headline
+number. It opens a one-page summary in a new tab that you can save or send. Or run:
 
 ```bash
 .venv/bin/fte share --name YourName

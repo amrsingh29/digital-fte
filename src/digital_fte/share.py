@@ -272,11 +272,7 @@ def render(s: dict, name: str | None = None) -> str:
     head = (f"""
   <p class="eyebrow">Digital FTE · {_mname(cur['month'])}{' · month to date' if is_current else ''}</p>
   <p class="big">{cur['dfte']:.1f}<small>DFTE</small></p>
-  <p class="range"><span title="Every task has a low and a high estimate. All the low ones add up to {cur['lo']:.1f}, all the high ones to {cur['hi']:.1f}.">likely {cur['lo']:.1f}–{cur['hi']:.1f}</span>
-    · <span title="What simple line-counting rules would say before AI review. They overcount because AI writes long, repetitive code.">{cur['rules']:.1f} without AI review</span></p>
-  <p class="range">{' · '.join(f"{v:.1f} {escape(label.lower())}" for label, v in s['purposes'])}</p>
-  <p class="explain">"Likely" is the range from each task's low and high estimate. "Without AI review" is what simple
-    line-counting rules would claim on their own; the AI review judges how hard each task really was.</p>
+  <p class="range"><span title="Every task has a low and a high estimate. All the low ones add up to {cur['lo']:.1f}, all the high ones to {cur['hi']:.1f}.">likely {cur['lo']:.1f}–{cur['hi']:.1f}</span></p>
   <p class="lede">My AI coding agents delivered {_words(cur['dfte'])}{' so far this month' if is_current else ''}.</p>"""
             if cur else '<p class="lede">No tasks recorded yet.</p>')
 
@@ -385,10 +381,10 @@ svg .r-other,.team-legend .r-other{{fill:var(--faint);background:var(--faint)}}
   <section>
     <h2>Month by month</h2>
     {_chart(rows)}
-    <div class="legend"><span><i></i>Digital FTE</span><span><i class="b"></i>Range</span><span><i class="r"></i>Rules only</span></div>
+    <div class="legend"><span><i></i>Digital FTE</span><span><i class="b"></i>Range</span><span><i class="r"></i>Without AI review</span></div>
     <div class="scroll" style="margin-top:18px">
       <table>
-        <thead><tr><th>Month</th><th>DFTE</th><th>Range</th><th>Rules only</th><th>Net hours</th><th>Tasks</th><th>Leverage</th><th>Cost per DFTE</th></tr></thead>
+        <thead><tr><th>Month</th><th>DFTE</th><th>Range</th><th>Without AI review</th><th>Net hours</th><th>Tasks</th><th>Leverage</th><th>Cost per DFTE</th></tr></thead>
         <tbody>{table}</tbody>
       </table>
     </div>
