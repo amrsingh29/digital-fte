@@ -33,8 +33,10 @@ In the dashboard, go to the **DFTE** view and scroll to **Tasks**.
 
 - **Click a task** to open its editor. Click it again, or **Close**, to fold it away.
 - **Filter** with the chips above the list (*Project work*, *General & learning*,
-  *Setup & admin*), pick a **month** at the top right, or click an **agent** to
-  see only its tasks.
+  *Setup & admin*), the **day** and **category** lists next to them, a **month**
+  at the top right, or click an **agent** to see only its tasks. Clicking a bar
+  in **By category** filters the list to that category too; **Clear** removes the
+  day and category filters.
 - **Link to one task:** `http://127.0.0.1:8765/?task=<task id>` opens the page on
   that task with its editor open. **Show all tasks** goes back to the full list.
 

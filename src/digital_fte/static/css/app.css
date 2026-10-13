@@ -84,7 +84,7 @@ code{font-family:var(--mono);font-size:.92em}
 .split{display:grid;grid-template-columns:1fr 1fr;gap:40px}
 
 .bars{display:flex;flex-direction:column;gap:2px}
-.bar{display:grid;grid-template-columns:minmax(0,9.5em) minmax(0,1fr) 4.2em;gap:12px;align-items:center;padding:7px 8px;border-radius:8px;text-align:left;width:100%}
+.bar{display:grid;grid-template-columns:9.5em minmax(0,1fr) 4.2em;gap:12px;align-items:center;padding:7px 8px;border-radius:8px;text-align:left;width:100%}
 button.bar:hover{background:var(--pill)}
 .bar.on{background:var(--pill)}
 .bar.off{opacity:.45}
@@ -140,7 +140,7 @@ footer{margin-top:48px;text-align:center;font-family:var(--mono);font-size:12px;
   .card .v{font-size:23px}
   .stage{aspect-ratio:1.45/1}
   .pill{font-size:11.5px;padding:2px 8px}
-  .bar{grid-template-columns:minmax(0,7.5em) minmax(0,1fr) 3.8em}
+  .bar{grid-template-columns:7.5em minmax(0,1fr) 3.8em}
 }
 @media (prefers-reduced-motion:reduce){
   .pill.live .dot{animation:none}
@@ -204,7 +204,7 @@ footer{margin-top:48px;text-align:center;font-family:var(--mono);font-size:12px;
 .learn-hint span{text-decoration:underline dotted;text-underline-offset:2px;cursor:help}
 .tag-sm.flash{background:var(--inv);color:var(--inv-fg);border-color:var(--inv)}
 .team-lead{margin:0 0 14px;font-size:15px;color:var(--muted);max-width:65ch;text-wrap:pretty}
-.team .bar{grid-template-columns:minmax(0,13em) minmax(0,1fr) 4.2em}
+.team .bar{grid-template-columns:13em minmax(0,1fr) 4.2em}
 #team-note{margin:10px 8px 0}
 .bar-divider{height:1px;background:var(--line);margin:10px 8px}
 .more-projects{font-size:12.5px;color:var(--muted);margin:6px 8px 0}
@@ -230,7 +230,11 @@ footer{margin-top:48px;text-align:center;font-family:var(--mono);font-size:12px;
   opacity:0;visibility:hidden;transition:opacity .12s .08s,visibility 0s .2s}
 .card.has-tip:hover .card-tip,.card.has-tip:focus .card-tip,.card.has-tip:focus-within .card-tip{opacity:1;visibility:visible;transition:opacity .12s .08s}
 @media (prefers-reduced-motion:reduce){.card-tip{transition:none}}
-@media (max-width:560px){.team .bar{grid-template-columns:minmax(0,10em) minmax(0,1fr) 3.8em}}
+@media (max-width:560px){.team .bar{grid-template-columns:10em minmax(0,1fr) 3.8em}}
+.by-category{margin-top:34px}
+.task-filters{display:flex;flex-wrap:wrap;gap:10px 14px;align-items:center}
+.filters{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.filters select{font:inherit;font-size:13px;color:var(--fg);background:var(--surface);border:1px solid var(--line);border-radius:7px;padding:4px 8px}
 /* The editor sits on a tinted background, where the faint grey is hard to read. */
 .editor .note,.editor .learn-hint{color:var(--muted)}
 .learn-hint{font-size:13px!important}

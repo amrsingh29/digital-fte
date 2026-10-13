@@ -66,6 +66,10 @@
     <div>
       <div class="block-head"><h2>By agent</h2></div>
       <div class="bars" id="by-agent"></div>
+      <div class="by-category" id="by-category-wrap">
+        <div class="block-head"><h2>By category</h2><span class="note">click one to filter the tasks</span></div>
+        <div class="bars" id="by-category"></div>
+      </div>
     </div>
     <div>
       <div class="block-head"><h2>By project</h2></div>
@@ -86,7 +90,10 @@
   <section class="block">
     <div class="block-head">
       <h2 id="table-title">Tasks</h2>
-      <div class="chips" id="cats"></div>
+      <div class="task-filters">
+        <div class="chips" id="cats"></div>
+        <div class="filters" id="task-filters"></div>
+      </div>
     </div>
     <div class="table-wrap">
       <table class="tasks">

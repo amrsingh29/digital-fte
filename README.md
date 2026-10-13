@@ -41,7 +41,7 @@ Everything runs on your Mac. Your transcripts never leave it.
 - **A virtual team:** which job roles the work replaced, e.g. *1.1 full-stack
   developer, 0.4 presales consultant, 0.2 business analyst*.
 - **Trends:** DFTE, leverage (hours delivered per hour you spent), cost per DFTE
-  and keep rate, month by month, by agent and by project.
+  and keep rate, month by month, by agent, by project and by category.
 - **A daily refresh** that catches up by itself, even if your laptop was closed.
 - **A summary page to share** with your manager: totals only, no task, project or
   customer names.

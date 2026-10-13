@@ -252,7 +252,8 @@
   const DFTE = {
     items(month, { byAgent = true, byCat = false } = {}) {
       return data.tasks.filter((t) => t.date.startsWith(month) && enabled[t.agent]
-        && (!byAgent || !S.agent || t.agent === S.agent) && (!byCat || !S.cat || t.purpose === S.cat));
+        && (!byAgent || !S.agent || t.agent === S.agent) && (!byCat || ((!S.cat || t.purpose === S.cat) && (!S.category || t.category === S.category)
+          && (!S.day || t.date === S.day))));
     },
     agg(ts) {
       const HPF = data.settings.hours_per_fte_month;
@@ -612,6 +613,7 @@
     renderChart();
     bars($("#by-agent"), view.agentBars(), view.fmtBar, pickAgent);
     projectBars($("#by-project"), view.projectBars(), view.fmtBar);
+    renderCategories();
     renderTeam();
     renderTable();
     renderAgents();
@@ -621,7 +623,42 @@
     orbit.select(S.agent, false);
   }
 
+  // Task filters (DFTE view): a day of the month, and a category. They narrow the list only.
+  function renderTaskFilters() {
+    const el = $("#task-filters");
+    if (V() !== DFTE || S.focusTask) { el.innerHTML = ""; return; }
+    const days = {};
+    DFTE.items(S.month).forEach((t) => (days[t.date] = (days[t.date] || 0) + 1));
+    const dayOpts = Object.keys(days).sort().reverse()
+      .map((d) => `<option value="${d}"${d === S.day ? " selected" : ""}>${esc(dayName(d))} · ${days[d]} task${days[d] === 1 ? "" : "s"}</option>`).join("");
+    const catOpts = data.categories.map((c) => `<option${c === S.category ? " selected" : ""}>${esc(c)}</option>`).join("");
+    el.innerHTML = `
+      <select id="f-day" aria-label="Filter tasks by day"><option value="">All days</option>${dayOpts}</select>
+      <select id="f-category" aria-label="Filter tasks by category"><option value="">All categories</option>${catOpts}</select>
+      ${S.day || S.category ? `<button type="button" class="linkish" id="f-clear">Clear</button>` : ""}`;
+    const set = (k, v) => { S[k] = v || null; S.showAll = false; render(); };
+    $("#f-day").addEventListener("change", (e) => set("day", e.target.value));
+    $("#f-category").addEventListener("change", (e) => set("category", e.target.value));
+    $("#f-clear")?.addEventListener("click", () => { S.day = S.category = null; S.showAll = false; render(); });
+  }
+
+  // By category (DFTE view): the month's DFTE per kind of work; a click filters the task list.
+  function renderCategories() {
+    const wrap = $("#by-category-wrap");
+    wrap.hidden = V() !== DFTE;
+    if (wrap.hidden) return;
+    const HPF = data.settings.hours_per_fte_month, ts = DFTE.items(S.month);
+    const rows = data.categories.map((c) => ({
+      id: c, name: c, on: S.category === c, tip: `${c}: click to show only these tasks`,
+      v: ts.filter((t) => t.category === c).reduce((s, t) => s + net(t), 0) / HPF,
+    })).sort((a, b) => b.v - a.v);
+    bars($("#by-category"), rows, (v) => v.toFixed(2), (id) => {
+      S.category = S.category === id ? null : id; S.showAll = false; render();
+    });
+  }
+
   function renderTable() {
+    if (S.day && !S.day.startsWith(S.month)) S.day = null;   // a day from another month
     const t = V().table();
     $("#table-title").textContent = t.title;
     $("#table-note").textContent = t.note;
@@ -630,6 +667,7 @@
     $("#cats").innerHTML = t.chips.length ? [["", "All"], ...t.chips.map((c) => (Array.isArray(c) ? c : [c, c]))].map(([v, l]) =>
       `<button type="button" class="chip" data-cat="${v}" aria-pressed="${(S.cat || "") === v}">${l}</button>`).join("") : "";
     $("#cats").querySelectorAll(".chip").forEach((b) => b.addEventListener("click", () => { S.cat = b.dataset.cat || null; S.showAll = false; renderTable(); }));
+    renderTaskFilters();
     const focused = S.focusTask && V() === DFTE;
     $("#more").hidden = !focused && t.total <= 12;
     $("#more").textContent = focused ? "Show all tasks" : S.showAll ? "Show fewer" : `Show all ${t.total}`;
@@ -730,7 +768,7 @@
   $("#h-clear").addEventListener("click", () => { S.agent = null; render(); });
   document.querySelectorAll(".seg button").forEach((b) => b.addEventListener("click", () => {
     if (S.view === b.dataset.view) return;
-    S.view = b.dataset.view; store.set("view", S.view); S.cat = null; S.showAll = false;
+    S.view = b.dataset.view; store.set("view", S.view); S.cat = S.category = S.day = null; S.showAll = false;
     document.querySelectorAll(".seg button").forEach((x) => x.setAttribute("aria-pressed", x.dataset.view === S.view));
     render(true);
   }));
