@@ -160,6 +160,9 @@ kind**: the job roles the same work would have needed.
   far this month; your agents cost $92."* Every role starts at
   `human_cost_per_month`; give roles their own cost in `config.toml` for a fairer
   comparison.
+- **Over time:** a stacked bar per month shows how the role mix changes. The six
+  biggest roles keep one colour everywhere, the rest are grouped as Other. The
+  summary page shows the same chart.
 - **You can correct them** in the task editor: one role, or two with a 70/30,
   50/50 or 30/70 split. Your recent corrections of roles, purpose and category
   are shown to the AI as examples, so it follows your way of classifying on new

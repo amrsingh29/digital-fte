@@ -88,3 +88,13 @@ def test_summary_shows_virtual_team(home):
     html = share.render(share.build(), "Sam")
     assert "Virtual team" in html and "Presales consultant" in html and "would cost about" in html
     assert "By kind of work" not in html and "Acme" not in html
+
+
+def test_team_series_keeps_top_roles_and_sums_the_rest(monkeypatch):
+    monkeypatch.setattr(share, "TEAM_COLORS", 2)
+    rows = [{"month": "2026-09", "team": {"A": 1.0, "B": 0.5, "C": 0.2}},
+            {"month": "2026-10", "team": {"A": 2.0, "D": 0.4}}]
+    assert share.team_series(rows) == [("A", [1.0, 2.0]), ("B", [0.5, 0.0]), ("Other", [0.2, 0.4])]
+    svg = share._team_chart(rows)
+    assert svg.count("<rect") == 5 and "Other" in svg and 'aria-label="Virtual team per month"' in svg
+    assert share._team_chart([]) == ""

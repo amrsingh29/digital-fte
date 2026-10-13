@@ -113,14 +113,51 @@
     const value = Object.entries(by).reduce((s, [n, v]) => s + v * (cost[n] ?? data.settings.human_cost_per_month), 0);
     return { by, cost, value, perPerson: dfte ? value / dfte : data.settings.human_cost_per_month };
   }
+  // Over time: a stacked bar per month; the 6 biggest roles across all months keep one
+  // colour each (--r1..--r6), the rest are Other. Clicking a month selects it.
+  const TEAM_COLORS = 6;
+  let teamChart = null;
+  function teamColors() {
+    const totals = {};
+    data.months.forEach((m) => Object.entries(teamOf(DFTE.items(m)).by).forEach(([n, v]) => (totals[n] = (totals[n] || 0) + v)));
+    const top = Object.entries(totals).sort((a, b) => b[1] - a[1]).slice(0, TEAM_COLORS).map(([n]) => n);
+    return { top, color: (n) => (top.includes(n) ? `--r${top.indexOf(n) + 1}` : "--faint") };
+  }
+  function renderTeamChart(colors) {
+    const v = css(), per = data.months.map((m) => teamOf(DFTE.items(m)).by);
+    const names = [...colors.top, "Other"];
+    const value = (by, n) => (n === "Other" ? Object.entries(by).filter(([k]) => !colors.top.includes(k)).reduce((s, [, x]) => s + x, 0) : by[n] || 0);
+    const idx = data.months.indexOf(S.month), axis = { color: v("--muted"), fontFamily: "Geist Mono", fontSize: 11 };
+    if (!teamChart) {
+      teamChart = echarts.init($("#team-chart"), null, { renderer: "svg" });
+      teamChart.on("click", (p) => { S.month = data.months[p.dataIndex]; $("#month").value = S.month; S.showAll = false; render(true); });
+    }
+    teamChart.setOption({
+      animationDuration: 500,
+      grid: { left: 44, right: 12, top: 10, bottom: 26 },
+      xAxis: { type: "category", data: data.months.map((m) => monthName(m, false)), axisLine: { lineStyle: { color: v("--line") } }, axisTick: { show: false }, axisLabel: axis },
+      yAxis: { type: "value", splitLine: { lineStyle: { color: v("--line") } }, axisLabel: { ...axis, formatter: (x) => x.toFixed(1) } },
+      tooltip: { trigger: "axis", axisPointer: { type: "shadow", shadowStyle: { color: v("--pill"), opacity: 0.5 } },
+        backgroundColor: v("--surface"), borderColor: v("--line"), textStyle: { color: v("--fg"), fontFamily: "Geist", fontSize: 12 },
+        formatter: (ps) => `<b>${monthName(data.months[ps[0].dataIndex])}</b><br>` + ps.filter((p) => p.value >= 0.005).reverse()
+          .map((p) => `${p.marker}${esc(p.seriesName)} ${p.value.toFixed(2)}`).join("<br>") },
+      series: names.map((n) => ({
+        type: "bar", stack: "team", name: n, barMaxWidth: 46,
+        data: per.map((by, i) => ({ value: value(by, n), itemStyle: { color: v(n === "Other" ? "--faint" : colors.color(n)), opacity: i === idx ? 1 : 0.55 } })),
+      })),
+    }, true);
+    $("#team-legend").innerHTML = names.filter((n) => per.some((by) => value(by, n) >= 0.005))
+      .map((n) => `<span><i class="sw" style="background:var(${n === "Other" ? "--faint" : colors.color(n)})"></i>${esc(n)}</span>`).join("");
+  }
+
   function renderTeam() {
     const block = $("#team-block");
     block.hidden = V() !== DFTE;
     if (block.hidden) return;
-    const ts = DFTE.items(S.month), team = teamOf(ts);
+    const ts = DFTE.items(S.month), team = teamOf(ts), colors = teamColors();
     const about = Object.fromEntries(data.roles.map((r) => [r.name, r.about]));
     const all = Object.entries(team.by).filter(([, v]) => v >= 0.005).sort((a, b) => b[1] - a[1])
-      .map(([name, v]) => ({ id: name, name, v,
+      .map(([name, v]) => ({ id: name, name, v, dot: `<span class="dot" style="background:var(${colors.color(name)})"></span>`,
         tip: `${name}${about[name] ? ": " + about[name] : ""} · ${money(team.cost[name] ?? data.settings.human_cost_per_month)}/month per person` }));
     const shown = all.slice(0, TEAM_LIMIT), rest = all.slice(TEAM_LIMIT);
     if (rest.length) {
@@ -128,6 +165,7 @@
                    v: rest.reduce((t, r) => t + r.v, 0), tip: rest.map((r) => `${r.name} ${r.v.toFixed(2)}`).join(", ") });
     }
     bars($("#team"), shown, (v) => v.toFixed(2));
+    renderTeamChart(colors);
     const named = all.slice(0, 3).map((r) => `${r.v.toFixed(r.v >= 1 ? 1 : 2)} ${r.name}`);
     $("#team-lead").textContent = all.length
       ? `Your agents worked like ${named.length > 1 ? named.slice(0, -1).join(", ") + " and " + named.at(-1) : named[0]}${all.length > 3 ? `, plus ${all.length - 3} more role${all.length - 3 === 1 ? "" : "s"}` : ""}. ` +
@@ -568,7 +606,7 @@
 
   /* ---------- chart ---------- */
   const chart = echarts.init($("#chart"), null, { renderer: "svg" });
-  window.addEventListener("resize", () => chart.resize());
+  window.addEventListener("resize", () => { chart.resize(); teamChart?.resize(); });
   chart.on("click", (p) => { if (p.dataIndex != null) { S.month = data.months[p.dataIndex]; $("#month").value = S.month; S.showAll = false; render(true); } });
 
   function renderChart() {

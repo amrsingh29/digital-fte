@@ -73,6 +73,7 @@ def build(cfg: dict | None = None) -> dict:
             m["kept"] += t["h"] * t["k"]
             m["h"] += t["h"]
             m["y"] += t["y"]
+    team_by_month = {key: team_of([t for t in tasks if month_of(t) == key], cfg) for key in months}
     rows = []
     for key in sorted(months):
         m = months[key]
@@ -84,6 +85,7 @@ def build(cfg: dict | None = None) -> dict:
             "leverage": m["kept"] / m["y"] if m["y"] else None,
             "keep": m["kept"] / m["h"] if m["h"] else None,
             "cost": cost, "cost_per_dfte": cost / dfte if dfte else None,
+            "team": {n: v for n, v, _ in team_by_month[key]["roles"]},
         })
 
     current = rows[-1]["month"] if rows else now.strftime("%Y-%m")
@@ -172,6 +174,59 @@ def _chart(rows: list[dict]) -> str:
 </svg>"""
 
 
+TEAM_COLORS = 6   # roles with their own colour in the team chart; the rest are "Other"
+
+
+def team_series(rows: list[dict]) -> list[tuple[str, list[float]]]:
+    """Per role, its DFTE in each month: the TEAM_COLORS biggest roles over all months,
+    the rest summed as Other. Same order (and colour) in every month."""
+    totals: dict[str, float] = {}
+    for r in rows:
+        for n, v in r["team"].items():
+            totals[n] = totals.get(n, 0) + v
+    top = [n for n, _ in sorted(totals.items(), key=lambda x: -x[1])][:TEAM_COLORS]
+    out = [(n, [r["team"].get(n, 0.0) for r in rows]) for n in top]
+    other = [sum(v for n, v in r["team"].items() if n not in top) for r in rows]
+    if any(other):
+        out.append(("Other", other))
+    return out
+
+
+def _team_chart(rows: list[dict]) -> str:
+    """Virtual team over time: one stacked bar per month, a colour per role."""
+    series = team_series(rows)
+    if not series:
+        return ""
+    W, H, L, R, T, B = 720, 220, 44, 16, 14, 30
+    totals = [sum(vals[i] for _, vals in series) for i in range(len(rows))]
+    top = max(max(totals), 0.5)
+    step = next(s for s in (0.25, 0.5, 1, 2, 5, 10, 20) if top / s <= 6)
+    ymax = math.ceil(top / step) * step
+    n = len(rows)
+    slot = (W - L - R) / n
+    bw = min(56, slot * 0.6)
+    Y = lambda v: T + (H - T - B) * (1 - v / ymax)
+    ticks, v = [], 0.0
+    while v <= ymax + 1e-9:
+        ticks.append(f'<line class="grid" x1="{L}" x2="{W - R}" y1="{Y(v):.1f}" y2="{Y(v):.1f}"/>'
+                     f'<text class="tick" x="{L - 8}" y="{Y(v) + 4:.1f}" text-anchor="end">{v:g}</text>')
+        v += step
+    rects = []
+    for i, r in enumerate(rows):
+        x, base = L + slot * i + (slot - bw) / 2, 0.0
+        for k, (name, vals) in enumerate(series):
+            if vals[i] > 0:
+                cls = "r-other" if name == "Other" else f"r{k + 1}"
+                rects.append(f'<rect class="{cls}" x="{x:.1f}" y="{Y(base + vals[i]):.1f}" width="{bw:.1f}" '
+                             f'height="{Y(base) - Y(base + vals[i]):.1f}"><title>{escape(name)} {vals[i]:.2f}</title></rect>')
+                base += vals[i]
+        rects.append(f'<text class="tick" x="{x + bw / 2:.1f}" y="{H - 8}" text-anchor="middle">{_mname(r["month"], False)}</text>')
+    legend = "".join(f'<span><i class="{"r-other" if name == "Other" else f"r{k + 1}"}"></i>{escape(name)}</span>'
+                     for k, (name, _) in enumerate(series))
+    return (f'<svg viewBox="0 0 {W} {H}" role="img" aria-label="Virtual team per month">{"".join(ticks)}{"".join(rects)}</svg>'
+            f'<div class="legend team-legend">{legend}</div>')
+
+
 def _words(d: float) -> str:
     words = {1: "one", 1.5: "one and a half", 2: "two", 2.5: "two and a half", 3: "three", 3.5: "three and a half",
              4: "four", 4.5: "four and a half", 5: "five"}
@@ -240,14 +295,17 @@ def render(s: dict, name: str | None = None) -> str:
 /* Layout: one reading column. Thesis number and a still ASCII globe, then the monthly record, then the splits. */
 :root{{
   --bg:#FAFAF8; --surface:#FFFFFF; --fg:#161616; --muted:#6F6F6A; --faint:#A6A6A0; --line:#E6E6E2; --band:#ECECE8; --accent:#C2603D;
+  --r1:#2F4858; --r2:#C2603D; --r3:#5C8A6E; --r4:#B08936; --r5:#6B5CA5; --r6:#8A9BA8;
   --serif:"Newsreader","Iowan Old Style",Georgia,serif;
   --sans:"Geist","Helvetica Neue",Arial,sans-serif;
   --mono:"Geist Mono",ui-monospace,"SF Mono",Menlo,monospace;
 }}
 @media (prefers-color-scheme:dark){{:root:not([data-theme="light"]){{
-  --bg:#0F0F0E; --surface:#171716; --fg:#ECECE8; --muted:#9C9C96; --faint:#5E5E5A; --line:#262624; --band:#1F1F1D; --accent:#F08C66; color-scheme:dark}}}}
+  --bg:#0F0F0E; --surface:#171716; --fg:#ECECE8; --muted:#9C9C96; --faint:#5E5E5A; --line:#262624; --band:#1F1F1D; --accent:#F08C66;
+  --r1:#9DB8C9; --r2:#F08C66; --r3:#8CC4A2; --r4:#E0BC6A; --r5:#AFA2E6; --r6:#6F808C; color-scheme:dark}}}}
 :root[data-theme="dark"]{{
-  --bg:#0F0F0E; --surface:#171716; --fg:#ECECE8; --muted:#9C9C96; --faint:#5E5E5A; --line:#262624; --band:#1F1F1D; --accent:#F08C66; color-scheme:dark}}
+  --bg:#0F0F0E; --surface:#171716; --fg:#ECECE8; --muted:#9C9C96; --faint:#5E5E5A; --line:#262624; --band:#1F1F1D; --accent:#F08C66;
+  --r1:#9DB8C9; --r2:#F08C66; --r3:#8CC4A2; --r4:#E0BC6A; --r5:#AFA2E6; --r6:#6F808C; color-scheme:dark}}
 *{{box-sizing:border-box}}
 body{{background:var(--bg);color:var(--fg);font:15px/1.55 var(--sans);-webkit-font-smoothing:antialiased;margin:0;padding-inline:20px;padding-block:28px 48px}}
 .wrap{{max-width:860px;margin:0 auto;display:flex;flex-direction:column;gap:40px}}
@@ -296,6 +354,15 @@ td{{font-family:var(--mono)}}
 .bar i{{height:8px;background:var(--band);border-radius:4px;overflow:hidden}}
 .bar b{{display:block;height:100%;background:var(--fg);border-radius:4px}}
 .bar em{{font-style:normal;font-family:var(--mono);font-size:13px;text-align:right}}
+/* Role colours: muted, distinct in both themes; Other stays neutral. */
+svg .r1,.team-legend .r1{{fill:var(--r1);background:var(--r1)}}
+svg .r2,.team-legend .r2{{fill:var(--r2);background:var(--r2)}}
+svg .r3,.team-legend .r3{{fill:var(--r3);background:var(--r3)}}
+svg .r4,.team-legend .r4{{fill:var(--r4);background:var(--r4)}}
+svg .r5,.team-legend .r5{{fill:var(--r5);background:var(--r5)}}
+svg .r6,.team-legend .r6{{fill:var(--r6);background:var(--r6)}}
+svg .r-other,.team-legend .r-other{{fill:var(--faint);background:var(--faint)}}
+.team-legend i{{border:0!important;width:10px!important;height:10px;border-radius:3px;vertical-align:-1px!important}}
 .worth{{font-size:13.5px;color:var(--muted);margin:12px 0 0}}
 .worth b{{color:var(--fg);font-weight:500}}
 .method p{{max-width:68ch;margin:0 0 10px;color:var(--muted)}}
@@ -330,6 +397,10 @@ td{{font-family:var(--mono)}}
     <section><h2>By agent</h2>{agents}</section>
     <section><h2>Virtual team</h2>{roles}{worth}</section>
   </div>
+  <section>
+    <h2>Virtual team over time</h2>
+    {_team_chart(rows)}
+  </section>
   <section class="method">
     <h2>How it's measured</h2>
     <p>Each agent session is split into tasks. For every task: <code>net hours = H × K − Y</code>, where H is the hours a competent

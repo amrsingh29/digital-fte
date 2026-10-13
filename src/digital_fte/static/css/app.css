@@ -3,6 +3,7 @@
   --bg:#FAFAF8; --surface:#FFFFFF; --fg:#161616; --muted:#6F6F6A; --faint:#A6A6A0; --line:#E6E6E2;
   --pill:#ECECE8; --pill-fg:#2B2B29; --inv:#161616; --inv-fg:#FAFAF8;
   --a-claude_code:#C2603D; --a-opencode:#0F766E; --a-cursor:#3D5FD9; --a-cline:#9C3D7A; --a-core:#55554F;
+  --r1:#2F4858; --r2:#C2603D; --r3:#5C8A6E; --r4:#B08936; --r5:#6B5CA5; --r6:#8A9BA8;   /* roles in the team chart */
   --serif:"Newsreader","Iowan Old Style",Georgia,serif;
   --sans:"Geist","Helvetica Neue",Arial,sans-serif;
   --mono:"Geist Mono",ui-monospace,"SF Mono",Menlo,monospace;
@@ -12,11 +13,13 @@
   --bg:#0F0F0E; --surface:#171716; --fg:#ECECE8; --muted:#9C9C96; --faint:#5E5E5A; --line:#262624;
   --pill:#1F1F1D; --pill-fg:#E4E4E0; --inv:#ECECE8; --inv-fg:#0F0F0E;
   --a-claude_code:#F08C66; --a-opencode:#3CC7B5; --a-cursor:#7D97FF; --a-cline:#E68BC4; --a-core:#B4B4AE;
+  --r1:#9DB8C9; --r2:#F08C66; --r3:#8CC4A2; --r4:#E0BC6A; --r5:#AFA2E6; --r6:#6F808C;
   color-scheme:dark}}
 :root[data-theme="dark"]{
   --bg:#0F0F0E; --surface:#171716; --fg:#ECECE8; --muted:#9C9C96; --faint:#5E5E5A; --line:#262624;
   --pill:#1F1F1D; --pill-fg:#E4E4E0; --inv:#ECECE8; --inv-fg:#0F0F0E;
   --a-claude_code:#F08C66; --a-opencode:#3CC7B5; --a-cursor:#7D97FF; --a-cline:#E68BC4; --a-core:#B4B4AE;
+  --r1:#9DB8C9; --r2:#F08C66; --r3:#8CC4A2; --r4:#E0BC6A; --r5:#AFA2E6; --r6:#6F808C;
   color-scheme:dark}
 
 *{box-sizing:border-box}
@@ -206,6 +209,12 @@ footer{margin-top:48px;text-align:center;font-family:var(--mono);font-size:12px;
 .team-lead{margin:0 0 14px;font-size:15px;color:var(--muted);max-width:65ch;text-wrap:pretty}
 .team .bar{grid-template-columns:13em minmax(0,1fr) 4.2em}
 #team-note{margin:10px 8px 0}
+.team-over{margin-top:26px}
+.team-over .block-head{border-bottom:0;margin-bottom:4px;padding-bottom:0}
+.team-over h3{font-family:var(--serif);font-weight:400;font-size:19px;margin:0}
+.team-chart{height:220px}
+#team-legend{flex-wrap:wrap;gap:6px 14px}
+#team-legend .sw{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:6px;vertical-align:-1px}
 .bar-divider{height:1px;background:var(--line);margin:10px 8px}
 .more-projects{font-size:12.5px;color:var(--muted);margin:6px 8px 0}
 
