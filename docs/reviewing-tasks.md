@@ -1,11 +1,13 @@
 # Reviewing and correcting tasks
 
+[← Back to the README](../README.md)
+
 The Digital FTE number is only as good as each task's estimate. The app
 estimates every task automatically, but **you know the work better than any
 rule or AI model**. Ten minutes of review makes the number something you can
 defend.
 
-![The task editor](images/task-editor.png)
+![The task editor, with two roles at a 50/50 split](images/task-editor.png)
 
 ---
 
@@ -107,14 +109,10 @@ weights, how much it counts.
 
 ### Category
 
-What kind of work it was. It decides which professional the hours are measured
-against, and which group the app learns from.
-
-| Category | Measured against |
-|---|---|
-| code | a mid-level developer |
-| documentation, demo prep | a presales consultant |
-| research, analysis | an analyst |
+What kind of work it was: code, documentation, demo prep, research or
+analysis. It decides where the task appears in **By category**, which group the
+app learns your hours from, and the task's first-guess role before the AI has
+reviewed it.
 
 ### Roles
 

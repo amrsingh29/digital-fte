@@ -171,7 +171,7 @@
       ? `Your agents worked like ${named.length > 1 ? named.slice(0, -1).join(", ") + " and " + named.at(-1) : named[0]}${all.length > 3 ? `, plus ${all.length - 3} more role${all.length - 3 === 1 ? "" : "s"}` : ""}. ` +
         `Done by people in these roles, it would cost about ${money(team.value)}${isLatest() ? " so far this month" : ""}; your agents cost ${money(costFor(S.month))}.`
       : "";
-    const guessed = ts.filter((t) => t.roles_basis !== "ai" && net(t) > 0).length;
+    const guessed = ts.filter((t) => t.roles_basis === "rules" && net(t) > 0).length;   // yours and the AI's aren't guesses
     $("#team-note").textContent = guessed
       ? `Roles for ${guessed} of ${ts.length} tasks are a first guess from their category until the AI reviews them.`
       : "Roles picked by the AI from each task's summary. Hover a role to see what it covers; edit the list in config.toml.";
