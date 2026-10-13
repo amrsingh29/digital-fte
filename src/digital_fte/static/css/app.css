@@ -231,3 +231,6 @@ footer{margin-top:48px;text-align:center;font-family:var(--mono);font-size:12px;
 .card.has-tip:hover .card-tip,.card.has-tip:focus .card-tip,.card.has-tip:focus-within .card-tip{opacity:1;visibility:visible;transition:opacity .12s .08s}
 @media (prefers-reduced-motion:reduce){.card-tip{transition:none}}
 @media (max-width:560px){.team .bar{grid-template-columns:minmax(0,10em) minmax(0,1fr) 3.8em}}
+/* The editor sits on a tinted background, where the faint grey is hard to read. */
+.editor .note,.editor .learn-hint{color:var(--muted)}
+.learn-hint{font-size:13px!important}
