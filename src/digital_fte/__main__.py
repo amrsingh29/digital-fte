@@ -30,7 +30,11 @@ def _estimate(args) -> None:
     con = db.connect(config.DB_PATH)
     n = estimate.rebuild(con, cfg)
     print(f"{n} tasks")
-    if args.ai:
+    if args.recheck_roles:   # e.g. after adding a role: let the AI pick again for every task
+        ai.ensure_tables(con)
+        con.execute("update ai_estimates set roles = null")
+        con.commit()
+    if args.ai or args.recheck_roles:
         act = ai.active(cfg)
         print(f"estimating with {act[0]} · {act[1].get('model')}…" if act else "AI is off (use = \"off\")")
         print(ai.run(config.DB_PATH, cfg, limit=args.limit))
@@ -70,6 +74,8 @@ def main() -> None:
     est = sub.add_parser("estimate", help="recompute tasks and print monthly DFTE")
     est.add_argument("--ai", action="store_true", help="also run the AI step for tasks it hasn't seen")
     est.add_argument("--limit", type=int, help="AI: at most this many tasks")
+    est.add_argument("--recheck-roles", action="store_true", help="ask the AI to pick roles again for every task "
+                     "(after you change the role catalog)")
 
     ref = sub.add_parser("refresh", help="scan + AI estimates (what the nightly job runs)")
     ref.add_argument("--if-older-than", type=float, metavar="HOURS", help="skip if the last scan is more recent")

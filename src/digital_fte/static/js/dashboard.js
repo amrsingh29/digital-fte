@@ -66,7 +66,7 @@
   function barRows(rows, fmt, max, clickable) {
     return rows.map((r) => `
       <${clickable ? "button type=button" : "div"} class="bar${r.on ? " on" : ""}${r.off ? " off" : ""}${r.other ? " other" : ""}" data-id="${esc(r.id)}">
-        <span class="n" title="${esc(r.name)}">${r.dot || ""}${esc(r.name)}</span>
+        <span class="n" title="${esc(r.tip || r.name)}">${r.dot || ""}${esc(r.name)}</span>
         <span class="t"><i style="width:${r.off ? 0 : (r.v / max) * 100}%;${r.color ? `background:var(${r.color})` : ""}"></i></span>
         <span class="v">${r.off ? esc(r.off) : fmt(r.v)}</span>
       </${clickable ? "button" : "div"}>`).join("");
@@ -100,6 +100,33 @@
       (pinned.length ? `<div class="bar-divider"></div>` + barRows(pinned, fmt, max, false) : "");
     const t = el.querySelector(".more-projects");
     if (t) t.addEventListener("click", () => { S.allProjects = !S.allProjects; projectBars(el, rows, fmt); });
+  }
+
+  // Virtual team: each task's net hours shared between its one or two roles, top 5 + Other.
+  const TEAM_LIMIT = 5;
+  function renderTeam() {
+    const block = $("#team-block");
+    block.hidden = V() !== DFTE;
+    if (block.hidden) return;
+    const HPF = data.settings.hours_per_fte_month, ts = DFTE.items(S.month), by = {};
+    ts.forEach((t) => (t.roles || []).forEach((r) => (by[r.role] = (by[r.role] || 0) + net(t) * r.share / HPF)));
+    const about = Object.fromEntries(data.roles.map((r) => [r.name, r.about]));
+    const all = Object.entries(by).filter(([, v]) => v >= 0.005).sort((a, b) => b[1] - a[1])
+      .map(([name, v]) => ({ id: name, name, v, tip: about[name] ? `${name}: ${about[name]}` : name }));
+    const shown = all.slice(0, TEAM_LIMIT), rest = all.slice(TEAM_LIMIT);
+    if (rest.length) {
+      shown.push({ id: "__other", name: `Other (${rest.length} role${rest.length === 1 ? "" : "s"})`, other: true,
+                   v: rest.reduce((t, r) => t + r.v, 0), tip: rest.map((r) => `${r.name} ${r.v.toFixed(2)}`).join(", ") });
+    }
+    bars($("#team"), shown, (v) => v.toFixed(2));
+    const named = all.slice(0, 3).map((r) => `${r.v.toFixed(r.v >= 1 ? 1 : 2)} ${r.name}`);
+    $("#team-lead").textContent = all.length
+      ? `Your agents worked like ${named.length > 1 ? named.slice(0, -1).join(", ") + " and " + named.at(-1) : named[0]}${all.length > 3 ? `, plus ${all.length - 3} more role${all.length - 3 === 1 ? "" : "s"}` : ""}.`
+      : "";
+    const guessed = ts.filter((t) => t.roles_basis !== "ai" && net(t) > 0).length;
+    $("#team-note").textContent = guessed
+      ? `Roles for ${guessed} of ${ts.length} tasks are a first guess from their category until the AI reviews them.`
+      : "Roles picked by the AI from each task's summary. Hover a role to see what it covers; edit the list in config.toml.";
   }
 
   /* ---------- state ---------- */
@@ -327,7 +354,7 @@
             <td><div class="title">${esc(t.title)}${t.correction ? ' <span class="tag-sm">edited</span>' : ""}${t.excluded ? ' <span class="tag-sm">not counted</span>' : ""}</div>
               <div class="proj">${esc(t.project)} · ${t.prompts} prompts · ${t.actions} actions</div><div class="why">${esc(why(t.evidence))}</div></td>
             <td class="ag hide-sm">${dot(t.agent)}${esc(AG[t.agent].name)}</td>
-            <td class="hide-sm">${esc(t.category)}<span class="rng">${t.purpose === "project" ? esc(t.role) : esc(data.purposes[t.purpose])}</span></td>
+            <td class="hide-sm">${esc(t.category)}<span class="rng">${esc((t.roles || []).map((r) => t.roles.length > 1 ? `${r.role} ${Math.round(r.share * 100)}%` : r.role).join(" · ") || t.role)}</span></td>
             <td class="num">${fmtH(t.h)}<span class="rng">${t.ai || t.correction ? "rules " + fmtH(t.rules.h) : `${t.h_low.toFixed(1)}–${t.h_high.toFixed(1)}`}</span></td>
             <td class="num${t.k < 0.5 ? " k0" : ""}" title="${esc(t.k_basis)}">${t.k.toFixed(2)}</td>
             <td class="num hide-sm">${fmtMin(t.y)}</td>
@@ -531,6 +558,7 @@
     renderChart();
     bars($("#by-agent"), view.agentBars(), view.fmtBar, pickAgent);
     projectBars($("#by-project"), view.projectBars(), view.fmtBar);
+    renderTeam();
     renderTable();
     renderAgents();
     // One globe for both views: sized by the month's agent activity, so it doesn't jump when you switch.
@@ -680,6 +708,10 @@ Y  your time: typing prompts (${r.typing_wpm} wpm, max 5m each) + time before ea
 AI step (${data.ai.use}): reads a short summary of each task and re-estimates H, the category, and K when
    no files could be checked. Its H is kept within 0.25×–2× of the rules H. Your corrections always win;
    after 3+ corrected H values in a category, that category's typical ratio is applied to the rest.
+
+Virtual team: the AI picks one or two roles per task from your catalog (${data.roles.length} roles), with a share
+   of its hours. Role DFTE = Σ (net hours × share) ÷ ${d.hours_per_fte_month}. Until the AI has seen a task, its
+   category or purpose decides. Roles never change the hours.
 
 A task = a stretch of work in one session; a break over ${r.task_gap_minutes}m starts a new one.
 Subagent work counts toward the task that launched it. Tune any rate in ~/.digital-fte/config.toml.`;

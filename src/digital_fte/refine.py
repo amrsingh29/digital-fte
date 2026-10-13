@@ -10,10 +10,14 @@
     5. Purpose (project work / general & learning / setup & admin): yours, else the
        AI's, else the rules'. Net hours are multiplied by that purpose's weight
        ([purposes] in config; 1.0 = count fully).
+    6. Roles (the "virtual team"): the AI's one or two roles from the catalog, else the
+       catalog's fallback role for the task's purpose or category. Roles label and value
+       the hours; they never change them.
 """
 
 from __future__ import annotations
 
+import json
 import sqlite3
 import statistics
 import time
@@ -51,6 +55,15 @@ def clear_correction(con: sqlite3.Connection, task_id: str) -> None:
     ensure_tables(con)
     con.execute("delete from corrections where task_id = ?", (task_id,))
     con.commit()
+
+
+def fallback_role(roles: list[dict], category: str, purpose: str) -> str | None:
+    """The catalog role for a task's purpose (learning, admin) or else its category."""
+    for key in ([purpose] if purpose != "project" else []) + [category]:
+        for r in roles:
+            if key in (r.get("fallback") or []):
+                return r["name"]
+    return roles[0]["name"] if roles else None
 
 
 def _clamp(v, lo, hi):
@@ -128,6 +141,16 @@ def finalize(con: sqlite3.Connection, cfg: dict) -> tuple[list[dict], dict]:
             t["excluded"] = bool(c["excluded"])
         t["h"] = round(h, 2)
         t["h_low"], t["h_high"] = round(t["h_low"], 2), round(t["h_high"], 2)
+        t["roles"], t["roles_basis"] = None, "rules"
+        if e := est.get(t["id"]):
+            names = {r["name"] for r in cfg.get("roles", [])}
+            got = ai.clean_roles(json.loads(e["roles"] or "[]"), list(names))
+            if got:
+                t["roles"], t["roles_basis"] = got, "ai"
+        if not t["roles"]:
+            name_ = fallback_role(cfg.get("roles", []), t["category"], t["purpose"])
+            t["roles"] = [{"role": name_, "share": 1.0}] if name_ else []
+        t["role"] = t["roles"][0]["role"] if t["roles"] else t["role"]
         t["weight"] = weights.get(t["purpose"], 1.0)
         t["net"] = 0.0 if t["excluded"] else round(max(0.0, t["h"] * t["k"] - t["y"]) * t["weight"], 2)
         t["rules"]["net"] = round(t["rules"]["net"] * weights.get(t["rules"]["purpose"], 1.0), 2)

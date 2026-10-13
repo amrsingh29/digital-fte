@@ -38,6 +38,8 @@ Everything runs on your Mac. Your transcripts never leave it.
 - **Proof behind it:** every task is listed with the evidence its estimate came
   from (lines written, files read, commands run) and, when AI is on, a
   one-sentence reason. Click any task to correct it.
+- **A virtual team:** which job roles the work replaced, e.g. *1.1 full-stack
+  developer, 0.4 presales consultant, 0.2 business analyst*.
 - **Trends:** DFTE, leverage (hours delivered per hour you spent), cost per DFTE
   and keep rate, month by month, by agent and by project.
 - **A daily refresh** that catches up by itself, even if your laptop was closed.
@@ -136,6 +138,28 @@ Each task gets a **purpose**, so everyday questions don't need a project:
 | **Setup & admin** | configuring agents, fixing your shell, installing tools | fully, by default |
 
 You can make learning or admin count half, or not at all, in the settings.
+
+### The virtual team
+
+DFTE says **how much** work the agents did. The **Virtual team** card says **what
+kind**: the job roles the same work would have needed.
+
+- Each task gets **one or two roles** from a catalog, with a share of its hours
+  (e.g. 60% presales consultant, 40% full-stack developer). A role's DFTE is the
+  sum of its shares of net hours ÷ 140.
+- **The AI picks the roles**, judging by *why* the work was done, not just the
+  file types. A Python script built for a customer demo is mostly presales work.
+  It can only choose roles from your catalog.
+- **Until the AI has reviewed a task**, it gets a first guess from its category
+  or purpose: code → full-stack developer, documents and demos → presales
+  consultant, analysis → business analyst, learning → researcher / advisor,
+  setup → DevOps / IT admin.
+- **Roles never change the hours.** They only label (and later, value) them.
+
+The default catalog has 10 roles: full-stack developer, front-end developer,
+data / AI engineer, DevOps / IT admin, UX designer, technical writer, business
+analyst, solution architect, presales consultant, researcher / advisor. Edit it
+in `config.toml` to fit your work (see [Settings](#settings)).
 
 ### Other numbers on the dashboard
 
@@ -429,7 +453,21 @@ Each line has a comment explaining it. The main ones:
 | | `auto` | true | Estimate new tasks automatically after each refresh |
 | `[ai.*]` | `model`, `base_url`, `key_keychain`, `key_env` | per service | How to reach each AI service |
 | | `parallel`, `pause_seconds` | 1, 3 for Cortex | Pace of AI requests, to leave room for your own agents |
+| `[[roles]]` | `name`, `about` | 10 roles | The virtual team's role catalog. `about` tells the AI what a role covers |
+| | `fallback` | per role | Categories or purposes that get this role before the AI has reviewed a task |
+| | `monthly_cost` | `human_cost_per_month` | Monthly cost of this role (optional) |
 | `[rates]` | 13 settings | | How evidence becomes hours (lines per hour, minutes per read, and so on) |
+
+To add your own role, append it to the file and restart the dashboard. The AI
+re-checks tasks only when they change, so assign the new role to older tasks
+yourself, or ask the AI to pick roles again for every task with
+`fte estimate --recheck-roles` (one AI request per task):
+
+```toml
+[[roles]]
+name = "ITSM platform consultant"
+about = "configures and extends ITSM and AIOps platforms for customers"
+```
 
 The agent switches and the active AI service can also be changed in the
 dashboard under **Settings**.
@@ -444,6 +482,7 @@ dashboard under **Settings**.
 | `fte scan` | Read new agent history. `--full` re-reads everything; `--agent cursor` reads one agent |
 | `fte estimate` | Recompute tasks and print DFTE per month (rules vs final) |
 | `fte estimate --ai` | The same, and send tasks the AI hasn't seen yet. `--limit N` for a few |
+| `fte estimate --recheck-roles` | Ask the AI to pick roles again for every task, after you change the role catalog |
 | `fte refresh` | Scan and AI estimates together: what the daily job runs |
 | `fte schedule install --at HH:MM` | Turn on the daily refresh. Also `remove` and `status` |
 | `fte share --name NAME` | Write the summary page to `~/.digital-fte/summary.html` |
@@ -464,6 +503,7 @@ added the alias.
 | AI estimates fail with **HTTP 403** | Check the key and `base_url`. Some company endpoints also need you to be on the company network or VPN. |
 | **Address already in use** when starting | Another `fte serve` is running. Use it, or start on another port: `fte serve --port 8766`. |
 | The daily refresh doesn't run | Run `fte schedule status`. If you moved the project folder, run `fte schedule install` again. The log is `~/.digital-fte/refresh.log`. |
+| A new role isn't used for older tasks | Run `fte estimate --recheck-roles`. The AI only re-checks tasks that changed. |
 | Numbers look too high | Turn on AI review (step 6), then correct a few tasks so the app learns your view. |
 | Start over | Delete `~/.digital-fte/fte.db` and run `fte scan`. Settings are kept. |
 

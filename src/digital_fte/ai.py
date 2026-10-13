@@ -47,6 +47,12 @@ Set `purpose`:
   searching and asking around to reach the same understanding without AI.
 - "admin": setting up, configuring or fixing their own tools, machine or accounts.
 
+Set `roles`: the one or two job roles, from the list below, whose expertise the work needed, with
+each role's share of the hours (shares add up to 1). Judge by why the work was done and what it
+produced, not only by file types: a script written to show a customer a demo is mostly presales
+work; a document explaining a design is architecture work. Use a second role only when it took at
+least a quarter of the effort.
+
 Return only JSON matching the schema. `title` is a short plain name for the work (max 70
 characters). `reason` is one sentence on what drove the estimate."""
 
@@ -60,9 +66,13 @@ SCHEMA = {
         "h": {"type": "number"},
         "h_high": {"type": "number"},
         "k": {"type": "number"},
+        "roles": {"type": "array", "items": {
+            "type": "object",
+            "properties": {"role": {"type": "string"}, "share": {"type": "number"}},
+            "required": ["role", "share"], "additionalProperties": False}},
         "reason": {"type": "string"},
     },
-    "required": ["title", "category", "purpose", "h_low", "h", "h_high", "k", "reason"],
+    "required": ["title", "category", "purpose", "h_low", "h", "h_high", "k", "roles", "reason"],
     "additionalProperties": False,
 }
 
@@ -70,7 +80,7 @@ TABLE = """
 create table if not exists ai_estimates (
   task_id text not null, service text not null, model text not null, n_events int,
   title text, category text, h_low real, h real, h_high real, k real, reason text,
-  error text, created_at real, purpose text,
+  error text, created_at real, purpose text, roles text,
   primary key (task_id, service, model)
 );
 """
@@ -79,8 +89,38 @@ create table if not exists ai_estimates (
 def ensure_tables(con: sqlite3.Connection) -> None:
     con.executescript(TABLE)
     cols = {r[1] for r in con.execute("pragma table_info(ai_estimates)")}
-    if "purpose" not in cols:   # added after the first release of this table
-        con.execute("alter table ai_estimates add column purpose text")
+    for col in ("purpose", "roles"):   # added after the first release of this table
+        if col not in cols:
+            con.execute(f"alter table ai_estimates add column {col} text")
+
+
+def prompt(roles: list[dict]) -> tuple[str, dict]:
+    """System prompt and schema for this person's role catalog."""
+    names = [r["name"] for r in roles]
+    catalog = "\n".join(f"- {r['name']}" + (f": {r['about']}" if r["about"] else "") for r in roles)
+    schema = json.loads(json.dumps(SCHEMA))
+    schema["properties"]["roles"]["items"]["properties"]["role"]["enum"] = names
+    return SYSTEM + "\n\nRoles:\n" + catalog, schema
+
+
+def clean_roles(raw, names: list[str]) -> list[dict] | None:
+    """At most two known roles, shares summing to 1. None if nothing usable."""
+    by_lower = {n.lower(): n for n in names}
+    merged: dict[str, float] = {}
+    for r in raw if isinstance(raw, list) else []:
+        try:
+            name, share = by_lower.get(str(r["role"]).strip().lower()), float(r.get("share", 1))
+        except (KeyError, TypeError, ValueError, AttributeError):
+            continue
+        if name and share > 0:
+            merged[name] = merged.get(name, 0) + share
+    top = sorted(merged.items(), key=lambda x: -x[1])[:2]
+    total = sum(v for _, v in top)
+    if not total:
+        return None
+    out = [{"role": n, "share": round(v / total, 2)} for n, v in top]
+    out[0]["share"] = round(1 - sum(r["share"] for r in out[1:]), 2)
+    return out
 
 
 class AIError(Exception):
@@ -149,7 +189,7 @@ def _json_from(text: str) -> dict:
     return json.loads(m.group(0))
 
 
-def _openai(svc: dict, user: str) -> dict:
+def _openai(svc: dict, user: str, system: str, schema: dict) -> dict:
     url = svc["base_url"].rstrip("/") + "/chat/completions"
     # An explicit User-Agent: Cloudflare-fronted endpoints (Cortex) reject Python's default one.
     headers = {"content-type": "application/json", "accept": "application/json", "user-agent": "digital-fte/0.1"}
@@ -157,8 +197,8 @@ def _openai(svc: dict, user: str) -> dict:
     if key:
         headers["authorization"] = f"Bearer {key}"
     body = {"model": svc["model"], "temperature": 0,
-            "messages": [{"role": "system", "content": SYSTEM},
-                         {"role": "user", "content": user + "\n\nJSON schema:\n" + json.dumps(SCHEMA)}],
+            "messages": [{"role": "system", "content": system},
+                         {"role": "user", "content": user + "\n\nJSON schema:\n" + json.dumps(schema)}],
             "response_format": {"type": "json_object"}}
     for attempt in range(5):
         req = urllib.request.Request(url, data=json.dumps(body).encode(), headers=headers, method="POST")
@@ -188,7 +228,7 @@ def _openai(svc: dict, user: str) -> dict:
     raise AIError("gave up after retries")
 
 
-def _anthropic(svc: dict, user: str) -> dict:
+def _anthropic(svc: dict, user: str, system: str, schema: dict) -> dict:
     import anthropic
 
     key = get_key(svc)
@@ -197,9 +237,9 @@ def _anthropic(svc: dict, user: str) -> dict:
         response = client.messages.create(
             model=svc["model"],
             max_tokens=8000,
-            system=SYSTEM,
+            system=system,
             messages=[{"role": "user", "content": user}],
-            output_config={"format": {"type": "json_schema", "schema": SCHEMA}},
+            output_config={"format": {"type": "json_schema", "schema": schema}},
         )
     except anthropic.RateLimitError as e:
         raise AIError(f"rate limited: {e.message}") from None
@@ -213,15 +253,17 @@ def _anthropic(svc: dict, user: str) -> dict:
     return json.loads(text)
 
 
-def estimate_one(svc: dict, summary: str) -> dict:
-    out = (_anthropic if svc.get("api") == "anthropic" else _openai)(svc, summary)
+def estimate_one(svc: dict, summary: str, roles: list[dict]) -> dict:
+    system, schema = prompt(roles)
+    out = (_anthropic if svc.get("api") == "anthropic" else _openai)(svc, summary, system, schema)
     try:
         h = float(out["h"])
         lo, hi = sorted([float(out.get("h_low", h)), float(out.get("h_high", h))])
         cat = out.get("category") if out.get("category") in CATEGORIES else None
         purpose = out.get("purpose") if out.get("purpose") in PURPOSES else None
         return {"title": str(out.get("title", ""))[:90], "category": cat, "purpose": purpose, "h": h, "h_low": min(lo, h),
-                "h_high": max(hi, h), "k": float(out.get("k", 0.7)), "reason": str(out.get("reason", ""))[:300]}
+                "h_high": max(hi, h), "k": float(out.get("k", 0.7)), "reason": str(out.get("reason", ""))[:300],
+                "roles": clean_roles(out.get("roles"), [r["name"] for r in roles])}
     except (KeyError, TypeError, ValueError) as e:
         raise AIError(f"unexpected reply shape: {e}") from None
 
@@ -234,12 +276,13 @@ _lock = threading.Lock()
 
 def pending(con: sqlite3.Connection, name: str, model: str, limit: int) -> list[sqlite3.Row]:
     """Tasks with no estimate from this service/model yet, whose task grew since, or
-    whose estimate predates the purpose field."""
+    whose estimate predates the purpose or roles fields."""
     ensure_tables(con)
     return con.execute(
         "select t.id, t.summary, t.n_events from tasks t left join ai_estimates a "
         "on a.task_id = t.id and a.service = ? and a.model = ? "
         "where a.task_id is null or a.n_events != t.n_events or a.error is not null or a.purpose is null "
+        "or a.roles is null "
         "order by t.started desc limit ?", (name, model, limit)).fetchall()
 
 
@@ -274,7 +317,7 @@ def _run(db_path, cfg: dict, name: str, svc: dict, limit: int | None) -> dict:
 
             def one(summary):
                 try:
-                    return estimate_one(svc, summary)
+                    return estimate_one(svc, summary, cfg["roles"])
                 finally:
                     time.sleep(pause)   # leave room for the person's own agents on a shared quota
 
@@ -287,10 +330,10 @@ def _run(db_path, cfg: dict, name: str, svc: dict, limit: int | None) -> dict:
                     r, err = {}, str(e)[:300]
                     progress["errors"] += 1
                     progress["last_error"] = err
-                con.execute("insert or replace into ai_estimates values (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                con.execute("insert or replace into ai_estimates values (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                             (t["id"], name, svc["model"], t["n_events"], r.get("title"), r.get("category"),
                              r.get("h_low"), r.get("h"), r.get("h_high"), r.get("k"), r.get("reason"), err, time.time(),
-                             r.get("purpose")))
+                             r.get("purpose"), json.dumps(r["roles"]) if r.get("roles") else ("[]" if r else None)))
                 con.commit()
                 progress["done"] += 1
         con.close()

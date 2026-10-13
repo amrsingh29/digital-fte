@@ -76,7 +76,7 @@ def _real() -> dict:
 
     tasks = [{
         "id": t["id"], "session": t["session_id"], "agent": t["agent"], "project": t["project"],
-        "title": t["title"], "category": t["category"], "role": CATEGORIES_ROLE[t["category"]], "model": t["model"],
+        "title": t["title"], "category": t["category"], "role": t["role"], "roles": t["roles"], "roles_basis": t["roles_basis"], "model": t["model"],
         "date": datetime.fromtimestamp(t["started"]).date().isoformat(), "started": t["started"], "ended": t["ended"],
         "prompts": t["n_prompts"], "actions": t["n_actions"],
         "h": t["h"], "h_low": t["h_low"], "h_high": t["h_high"], "k": t["k"], "k_basis": t["k_basis"],
@@ -127,6 +127,7 @@ def _real() -> dict:
                **ai_summary, "progress": dict(ai.progress)},
         "categories": list(CATEGORIES_ROLE),
         "purposes": PURPOSES,
+        "roles": cfg["roles"],
         "schedule": jobs.status(),
         "agents": agents,
         "months": months,

@@ -63,6 +63,59 @@ base_url = "http://localhost:11434/v1"
 model = ""
 """
 
+ROLES_DEFAULT = """\
+# The job roles your agents' work is mapped to (the "virtual team"). The AI picks one or
+# two per task from this list, judging by why the work was done, not just the file types.
+# Add your own roles, rename or remove these. `about` tells the AI what the role covers.
+# `fallback`: categories (code, documentation, demo prep, research, analysis) or purposes
+# (learning, admin) that get this role when the AI hasn't estimated a task.
+# `monthly_cost` (optional) defaults to human_cost_per_month.
+[[roles]]
+name = "Full-stack developer"
+about = "builds apps, APIs, back-end logic and scripts"
+fallback = ["code"]
+
+[[roles]]
+name = "Front-end developer"
+about = "builds user interfaces, web pages and styling"
+
+[[roles]]
+name = "Data / AI engineer"
+about = "builds data pipelines, AI prompts, agents and model integrations"
+
+[[roles]]
+name = "DevOps / IT admin"
+about = "sets up and fixes tools, machines, config, deployment and automation"
+fallback = ["admin"]
+
+[[roles]]
+name = "UX designer"
+about = "designs layouts, user flows and visual style"
+
+[[roles]]
+name = "Technical writer"
+about = "writes large standalone guides, manuals and documentation sets"
+
+[[roles]]
+name = "Business analyst"
+about = "analyses data and requirements; comparisons, sizing, spreadsheets and reports"
+fallback = ["analysis"]
+
+[[roles]]
+name = "Solution architect"
+about = "designs solutions, architecture and integration plans"
+
+[[roles]]
+name = "Presales consultant"
+about = "prepares customer demos, proposals, decks and customer-facing documents"
+fallback = ["documentation", "demo prep"]
+
+[[roles]]
+name = "Researcher / advisor"
+about = "explains, teaches and looks things up, like a senior colleague would"
+fallback = ["research", "learning"]
+"""
+
 DEFAULT = """\
 # digital-fte settings. Edit freely; the dashboard's Agents switches update `enabled`.
 
@@ -113,7 +166,7 @@ enabled = true
 path = "~/.cline/data/sessions"
 cost_per_month = 0
 
-""" + PURPOSES_DEFAULT + "\n" + AI_DEFAULT
+""" + PURPOSES_DEFAULT + "\n" + AI_DEFAULT + "\n" + ROLES_DEFAULT
 
 
 def _block(name: str) -> str:
@@ -145,6 +198,8 @@ def ensure() -> None:
     elif not re.search(r"^use\s*=", ai.group(0), re.M):
         # Phase 3 had one [ai] table; replace it with the per-service layout.
         text = text[: ai.start()] + AI_DEFAULT + text[ai.end():]
+    if not re.search(r"^\[\[roles\]\]", text, re.M):
+        text = text.rstrip() + "\n\n" + ROLES_DEFAULT
     if text != CONFIG_PATH.read_text():
         CONFIG_PATH.write_text(text)
 
@@ -164,7 +219,22 @@ def load() -> dict:
             else:
                 cfg[section].setdefault(k, v)
     cfg.setdefault("agents", {})
+    cfg["roles"] = roles(cfg.get("roles") or defaults["roles"], cfg["dfte"]["human_cost_per_month"])
     return cfg
+
+
+def roles(raw: list, default_cost: float) -> list[dict]:
+    """The role catalog, cleaned: named, unique, each with a cost and a fallback list."""
+    out, seen = [], set()
+    for r in raw:
+        name = str(r.get("name", "")).strip() if isinstance(r, dict) else ""
+        if not name or name.lower() in seen:
+            continue
+        seen.add(name.lower())
+        out.append({"name": name, "about": str(r.get("about", "")).strip(),
+                    "monthly_cost": float(r.get("monthly_cost") or default_cost),
+                    "fallback": [str(f) for f in r.get("fallback", [])]})
+    return out
 
 
 def set_agent_enabled(agent_id: str, enabled: bool) -> None:

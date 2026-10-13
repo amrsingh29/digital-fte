@@ -26,9 +26,10 @@ def setup(tmp_path, n_tasks=1):
 
 
 def add_ai(con, task_id, h, k=0.9, title="AI title", category="documentation", service="cortex", model="cortex-fast",
-           purpose="project"):
-    con.execute("insert or replace into ai_estimates values (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-                (task_id, service, model, 3, title, category, h * 0.7, h, h * 1.3, k, "why", None, time.time(), purpose))
+           purpose="project", roles=None):
+    con.execute("insert or replace into ai_estimates values (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                (task_id, service, model, 3, title, category, h * 0.7, h, h * 1.3, k, "why", None, time.time(), purpose,
+                 json.dumps(roles or [])))
 
 
 def final(con, task_id):
