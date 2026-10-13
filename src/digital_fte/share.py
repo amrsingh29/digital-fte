@@ -1,7 +1,7 @@
 """Phase 5: a totals-only summary page you can share.
 
 Only aggregates leave this module: monthly DFTE, hours, leverage, cost and keep
-rate, plus splits by agent and by kind of work. Never task titles, prompts,
+rate, plus splits by agent and by job role (the virtual team). Never task titles, prompts,
 file names, project or customer names.
 """
 
@@ -14,7 +14,7 @@ from html import escape
 
 from . import config, db, refine
 from .collectors import COLLECTORS
-from .estimate import CATEGORIES_ROLE, PURPOSES
+from .estimate import PURPOSES
 
 RAMP = " .:-=+*#%@"
 
@@ -26,6 +26,22 @@ def _cost_share(month: str, now: datetime) -> float:
     if (y, m) == (now.year, now.month):
         return now.day / calendar.monthrange(y, m)[1]
     return 1.0
+
+
+def team_of(tasks: list[dict], cfg: dict) -> dict:
+    """The virtual team for these tasks: DFTE per role (each task's net hours shared
+    between its roles), and what people in those roles would cost per month."""
+    hpf = cfg["dfte"]["hours_per_fte_month"]
+    cost = {r["name"]: r["monthly_cost"] for r in cfg.get("roles", [])}
+    default = cfg["dfte"]["human_cost_per_month"]
+    by: dict[str, float] = {}
+    for t in tasks:
+        for r in t.get("roles") or []:
+            by[r["role"]] = by.get(r["role"], 0) + t["net"] * r["share"] / hpf
+    roles = sorted(((n, v, cost.get(n, default)) for n, v in by.items() if v > 0), key=lambda x: -x[1])
+    value = sum(v * c for _, v, c in roles)
+    dfte = sum(v for _, v, _ in roles)
+    return {"roles": roles, "value": value, "per_person": value / dfte if dfte else default}
 
 
 def build(cfg: dict | None = None) -> dict:
@@ -75,9 +91,7 @@ def build(cfg: dict | None = None) -> dict:
     by_agent = {}
     for t in cur:
         by_agent[t["agent"]] = by_agent.get(t["agent"], 0) + t["net"] / hpf
-    by_kind = {}
-    for t in cur:
-        by_kind[t["category"]] = by_kind.get(t["category"], 0) + t["net"] / hpf
+    team = team_of(cur, cfg)
     by_purpose = {}
     for t in cur:
         by_purpose[t["purpose"]] = by_purpose.get(t["purpose"], 0) + t["net"] / hpf
@@ -87,7 +101,7 @@ def build(cfg: dict | None = None) -> dict:
         "human_cost": cfg["dfte"]["human_cost_per_month"],
         "agents": sorted(((COLLECTORS[a].name, v) for a, v in by_agent.items()), key=lambda x: -x[1]),
         "purposes": [(PURPOSES[p], by_purpose[p]) for p in PURPOSES if by_purpose.get(p, 0) >= 0.05],
-        "kinds": sorted(((k, CATEGORIES_ROLE[k], v) for k, v in by_kind.items()), key=lambda x: -x[2]),
+        "team": team, "agent_cost": monthly_cost * _cost_share(current, now),
         "ai": ai_summary, "task_count": len(tasks),
         "corrected": ai_summary.get("corrected", 0),
     }
@@ -189,9 +203,16 @@ def render(s: dict, name: str | None = None) -> str:
     amax = max([v for _, v in s["agents"]] + [0.001])
     agents = "".join(f'<div class="bar"><span>{escape(n)}</span><i><b style="width:{v / amax * 100:.1f}%"></b></i><em>{v:.2f}</em></div>'
                      for n, v in s["agents"]) or '<p class="dim">No tasks this month.</p>'
-    kmax = max([v for *_, v in s["kinds"]] + [0.001])
-    kinds = "".join(f'<div class="bar"><span>{escape(k)} <small>{escape(role)}</small></span><i><b style="width:{v / kmax * 100:.1f}%"></b></i><em>{v:.2f}</em></div>'
-                    for k, role, v in s["kinds"]) or '<p class="dim">No tasks this month.</p>'
+    team = s["team"]
+    shown, rest = team["roles"][:6], team["roles"][6:]
+    if rest:
+        shown = shown + [(f"Other ({len(rest)} roles)", sum(v for _, v, _ in rest), None)]
+    tmax = max([v for _, v, _ in shown] + [0.001])
+    roles = "".join(f'<div class="bar"><span>{escape(n)}</span><i><b style="width:{v / tmax * 100:.1f}%"></b></i><em>{v:.2f}</em></div>'
+                    for n, v, _ in shown) or '<p class="dim">No tasks this month.</p>'
+    worth = (f'<p class="worth">Done by people in these roles, this work would cost about <b>{money(team["value"])}</b>'
+             f'{" so far this month" if is_current else " a month"}; my agents cost {money(s["agent_cost"])}.</p>'
+             if team["roles"] else "")
 
     head = (f"""
   <p class="eyebrow">Digital FTE · {_mname(cur['month'])}{' · month to date' if is_current else ''}</p>
@@ -208,7 +229,7 @@ def render(s: dict, name: str | None = None) -> str:
   <dl class="stats">
     <div><dt>Net hours</dt><dd>{cur['net']:,.0f}</dd><p>{cur['tasks']} tasks</p></div>
     <div><dt>Leverage</dt><dd>{lev(cur['leverage'])}</dd><p>hours delivered per hour I spent</p></div>
-    <div><dt>Cost per DFTE</dt><dd>{money(cur['cost_per_dfte'])}</dd><p>vs {money(s['human_cost'])} for a person</p></div>
+    <div><dt>Cost per DFTE</dt><dd>{money(cur['cost_per_dfte'])}</dd><p>vs {money(s['team']['per_person'])} for a person in these roles</p></div>
     <div><dt>Keep rate</dt><dd>{pct(cur['keep'])}</dd><p>of agent output used</p></div>
   </dl>""" if cur else ""
 
@@ -275,6 +296,8 @@ td{{font-family:var(--mono)}}
 .bar i{{height:8px;background:var(--band);border-radius:4px;overflow:hidden}}
 .bar b{{display:block;height:100%;background:var(--fg);border-radius:4px}}
 .bar em{{font-style:normal;font-family:var(--mono);font-size:13px;text-align:right}}
+.worth{{font-size:13.5px;color:var(--muted);margin:12px 0 0}}
+.worth b{{color:var(--fg);font-weight:500}}
 .method p{{max-width:68ch;margin:0 0 10px;color:var(--muted)}}
 .method code{{font-family:var(--mono);font-size:13px;color:var(--fg)}}
 .note{{font-size:12px;color:var(--faint);margin:0}}
@@ -305,7 +328,7 @@ td{{font-family:var(--mono)}}
   </section>
   <div class="split">
     <section><h2>By agent</h2>{agents}</section>
-    <section><h2>By kind of work</h2>{kinds}</section>
+    <section><h2>Virtual team</h2>{roles}{worth}</section>
   </div>
   <section class="method">
     <h2>How it's measured</h2>
@@ -315,7 +338,9 @@ td{{font-family:var(--mono)}}
     <p>H starts from rules (lines written, files read, commands, answers) and is refined by {escape(est_by)}, which judges how hard
       each task really was, within 0.25× to 2× of the rules estimate. {s['corrected']} task{'s' if s['corrected'] != 1 else ''} were
       reviewed and corrected by hand. Work is counted in three parts: project work, general &amp; learning (asking the
-      AI to explain or teach, as I would ask a senior colleague), and setup &amp; admin of my own tools. Cost per DFTE uses the agents' monthly subscriptions, counting the current month up to today.</p>
+      AI to explain or teach, as I would ask a senior colleague), and setup &amp; admin of my own tools. Cost per DFTE uses the agents' monthly subscriptions, counting the current month up to today.
+      The virtual team splits each task's hours between the one or two job roles it needed (picked by the AI, reviewed by
+      hand), and values them at a monthly cost per role.</p>
     <p class="note">Generated {now:%-d %B %Y, %H:%M} from {s['task_count']} tasks. Totals only: no task names, prompts, files or customer names.</p>
   </section>
 </main>"""

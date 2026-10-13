@@ -43,8 +43,8 @@ Everything runs on your Mac. Your transcripts never leave it.
 - **Trends:** DFTE, leverage (hours delivered per hour you spent), cost per DFTE
   and keep rate, month by month, by agent, by project and by category.
 - **A daily refresh** that catches up by itself, even if your laptop was closed.
-- **A summary page to share** with your manager: totals only, no task, project or
-  customer names.
+- **A summary page to share** with your manager: totals and the virtual team
+  only, no task, project or customer names.
 
 <p>
   <img src="docs/images/dashboard-dark.png" alt="Dashboard in dark mode" width="49%">
@@ -154,7 +154,12 @@ kind**: the job roles the same work would have needed.
   or purpose: code → full-stack developer, documents and demos → presales
   consultant, analysis → business analyst, learning → researcher / advisor,
   setup → DevOps / IT admin.
-- **Roles never change the hours.** They only label (and later, value) them.
+- **Roles never change the hours.** They only label and value them.
+- **What the team would cost:** each role's DFTE × its `monthly_cost`, shown under
+  the card as *"Done by people in these roles, it would cost about $29,600 so
+  far this month; your agents cost $92."* Every role starts at
+  `human_cost_per_month`; give roles their own cost in `config.toml` for a fairer
+  comparison.
 - **You can correct them** in the task editor: one role, or two with a 70/30,
   50/50 or 30/70 split. Your recent corrections of roles, purpose and category
   are shown to the AI as examples, so it follows your way of classifying on new
@@ -175,7 +180,7 @@ Hover over (or tap) any number on the dashboard to see its definition.
 | **Rules only** | DFTE before AI review, for comparison |
 | **Gross** | DFTE without subtracting your own time |
 | **Leverage** | Hours of work delivered for every hour you spent |
-| **Cost per DFTE** | What your agents cost per month ÷ DFTE. The current month counts only the days so far. |
+| **Cost per DFTE** | What your agents cost per month ÷ DFTE. The current month counts only the days so far. Compared with the average monthly cost of a person in the roles the work needed. |
 | **Keep rate** | Share of the agents' output you actually used |
 
 ### Guard rails

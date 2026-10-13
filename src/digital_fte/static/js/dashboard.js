@@ -103,16 +103,25 @@
   }
 
   // Virtual team: each task's net hours shared between its one or two roles, top 5 + Other.
+  // Valued at each role's monthly cost (config.toml; defaults to human_cost_per_month).
   const TEAM_LIMIT = 5;
+  function teamOf(ts) {
+    const HPF = data.settings.hours_per_fte_month, by = {};
+    const cost = Object.fromEntries(data.roles.map((r) => [r.name, r.monthly_cost]));
+    ts.forEach((t) => (t.roles || []).forEach((r) => (by[r.role] = (by[r.role] || 0) + net(t) * r.share / HPF)));
+    const dfte = Object.values(by).reduce((s, v) => s + v, 0);
+    const value = Object.entries(by).reduce((s, [n, v]) => s + v * (cost[n] ?? data.settings.human_cost_per_month), 0);
+    return { by, cost, value, perPerson: dfte ? value / dfte : data.settings.human_cost_per_month };
+  }
   function renderTeam() {
     const block = $("#team-block");
     block.hidden = V() !== DFTE;
     if (block.hidden) return;
-    const HPF = data.settings.hours_per_fte_month, ts = DFTE.items(S.month), by = {};
-    ts.forEach((t) => (t.roles || []).forEach((r) => (by[r.role] = (by[r.role] || 0) + net(t) * r.share / HPF)));
+    const ts = DFTE.items(S.month), team = teamOf(ts);
     const about = Object.fromEntries(data.roles.map((r) => [r.name, r.about]));
-    const all = Object.entries(by).filter(([, v]) => v >= 0.005).sort((a, b) => b[1] - a[1])
-      .map(([name, v]) => ({ id: name, name, v, tip: about[name] ? `${name}: ${about[name]}` : name }));
+    const all = Object.entries(team.by).filter(([, v]) => v >= 0.005).sort((a, b) => b[1] - a[1])
+      .map(([name, v]) => ({ id: name, name, v,
+        tip: `${name}${about[name] ? ": " + about[name] : ""} · ${money(team.cost[name] ?? data.settings.human_cost_per_month)}/month per person` }));
     const shown = all.slice(0, TEAM_LIMIT), rest = all.slice(TEAM_LIMIT);
     if (rest.length) {
       shown.push({ id: "__other", name: `Other (${rest.length} role${rest.length === 1 ? "" : "s"})`, other: true,
@@ -121,7 +130,8 @@
     bars($("#team"), shown, (v) => v.toFixed(2));
     const named = all.slice(0, 3).map((r) => `${r.v.toFixed(r.v >= 1 ? 1 : 2)} ${r.name}`);
     $("#team-lead").textContent = all.length
-      ? `Your agents worked like ${named.length > 1 ? named.slice(0, -1).join(", ") + " and " + named.at(-1) : named[0]}${all.length > 3 ? `, plus ${all.length - 3} more role${all.length - 3 === 1 ? "" : "s"}` : ""}.`
+      ? `Your agents worked like ${named.length > 1 ? named.slice(0, -1).join(", ") + " and " + named.at(-1) : named[0]}${all.length > 3 ? `, plus ${all.length - 3} more role${all.length - 3 === 1 ? "" : "s"}` : ""}. ` +
+        `Done by people in these roles, it would cost about ${money(team.value)}${isLatest() ? " so far this month" : ""}; your agents cost ${money(costFor(S.month))}.`
       : "";
     const guessed = ts.filter((t) => t.roles_basis !== "ai" && net(t) > 0).length;
     $("#team-note").textContent = guessed
@@ -294,7 +304,7 @@
       };
     },
     metrics(a) {
-      const cost = costFor(S.month);
+      const cost = costFor(S.month), team = teamOf(DFTE.items(S.month));
       const prev = data.months[data.months.indexOf(S.month) - 1];
       const pa = prev ? DFTE.agg(DFTE.items(prev)) : null;
       const prevCpd = pa && pa.dfte ? costFor(prev) / pa.dfte : null;
@@ -303,8 +313,8 @@
           `The work your agents did for you, in hours: for each task, the hours a person would need × the share you kept, minus your own time, added up. ${fmtH(a.net)} ÷ ${data.settings.hours_per_fte_month} hours in a working month = ${a.dfte.toFixed(1)} DFTE.`],
         ["Leverage", a.y ? (a.kept / a.y).toFixed(1) + "×" : "–", "hours delivered per hour you spent",
           `Hours of work you got back for every hour you spent prompting and reviewing.${a.y ? ` ${(a.kept / a.y).toFixed(1)}× means each hour of your time produced about ${(a.kept / a.y).toFixed(0)} hours of work.` : ""} It reads high, because thinking and checking outside the chat isn't counted yet.`],
-        ["Cost per DFTE", a.dfte ? money(cost / a.dfte) : "–", `vs ${money(data.settings.human_cost_per_month)} for a person` + (prevCpd ? ` · ${money(prevCpd)} in ${monthName(prev, false)}` : ""),
-          `What one person's worth of agent work costs you: the agents' monthly subscriptions (this month only up to today) ÷ DFTE. Compare it with ${money(data.settings.human_cost_per_month)}, the monthly cost of a person.`],
+        ["Cost per DFTE", a.dfte ? money(cost / a.dfte) : "–", `vs ${money(team.perPerson)} for a person` + (prevCpd ? ` · ${money(prevCpd)} in ${monthName(prev, false)}` : ""),
+          `What one person's worth of agent work costs you: the agents' monthly subscriptions (this month only up to today) ÷ DFTE. Compare it with ${money(team.perPerson)}, the average monthly cost of a person in the roles this work needed (see Virtual team; set each role's monthly_cost in config.toml).`],
         ["Keep rate", a.h ? Math.round((a.kept / a.h) * 100) + "%" : "–", "of agent output you used",
           "How much of the agents' work you actually used: hours kept ÷ hours produced. Lower means more output was thrown away or redone."],
       ];

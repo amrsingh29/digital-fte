@@ -64,3 +64,27 @@ def test_file_lock_is_exclusive(home):
         assert first
         with jobs.file_lock("x", wait=False) as second:
             assert second is False
+
+
+def test_virtual_team_and_role_costs():
+    cfg = {"dfte": {"hours_per_fte_month": 100, "human_cost_per_month": 9000},
+           "roles": [{"name": "Dev", "monthly_cost": 8000}, {"name": "Presales", "monthly_cost": 12000}]}
+    tasks = [{"net": 50, "roles": [{"role": "Dev", "share": 1.0}]},
+             {"net": 50, "roles": [{"role": "Presales", "share": 0.6}, {"role": "Dev", "share": 0.4}]},
+             {"net": 10, "roles": [{"role": "Retired", "share": 1.0}]}]       # not in the catalog: default cost
+    team = share.team_of(tasks, cfg)
+    assert [(n, round(v, 2), c) for n, v, c in team["roles"]] == [("Dev", 0.7, 8000), ("Presales", 0.3, 12000),
+                                                                  ("Retired", 0.1, 9000)]
+    assert team["value"] == pytest.approx(0.7 * 8000 + 0.3 * 12000 + 0.1 * 9000)
+    assert team["per_person"] == pytest.approx(team["value"] / 1.1)
+    assert share.team_of([], cfg)["per_person"] == 9000
+
+
+def test_summary_shows_virtual_team(home):
+    con = db.connect(config.DB_PATH)
+    add_task(con, "Prepare the Acme renewal deck", "Acme (Singapore)")
+    estimate.rebuild(con, config.load())
+    con.close()
+    html = share.render(share.build(), "Sam")
+    assert "Virtual team" in html and "Presales consultant" in html and "would cost about" in html
+    assert "By kind of work" not in html and "Acme" not in html
