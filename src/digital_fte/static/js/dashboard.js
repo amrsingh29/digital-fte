@@ -159,12 +159,16 @@
     const all = Object.entries(team.by).filter(([, v]) => v >= 0.005).sort((a, b) => b[1] - a[1])
       .map(([name, v]) => ({ id: name, name, v, dot: `<span class="dot" style="background:var(${colors.color(name)})"></span>`,
         tip: `${name}${about[name] ? ": " + about[name] : ""} · ${money(team.cost[name] ?? data.settings.human_cost_per_month)}/month per person` }));
-    const shown = all.slice(0, TEAM_LIMIT), rest = all.slice(TEAM_LIMIT);
-    if (rest.length) {
-      shown.push({ id: "__other", name: `Other (${rest.length} role${rest.length === 1 ? "" : "s"})`, other: true,
-                   v: rest.reduce((t, r) => t + r.v, 0), tip: rest.map((r) => `${r.name} ${r.v.toFixed(2)}`).join(", ") });
-    }
+    // Top 5, with "Show all" for the rest (same as By project), on one scale so bars compare.
+    const shown = S.allRoles ? all : all.slice(0, TEAM_LIMIT);
     bars($("#team"), shown, (v) => v.toFixed(2));
+    if (all.length > TEAM_LIMIT) {
+      const more = document.createElement("button");
+      more.type = "button"; more.className = "linkish more-projects";
+      more.textContent = S.allRoles ? "Show fewer" : `Show all ${all.length} roles`;
+      more.addEventListener("click", () => { S.allRoles = !S.allRoles; renderTeam(); });
+      $("#team").append(more);
+    }
     renderTeamChart(colors);
     const named = all.slice(0, 3).map((r) => `${r.v.toFixed(r.v >= 1 ? 1 : 2)} ${r.name}`);
     $("#team-lead").textContent = all.length
@@ -180,7 +184,7 @@
   /* ---------- state ---------- */
   // ?task=<id> opens one task straight away (handy to bookmark or send to yourself).
   const linkedTask = new URLSearchParams(location.search).get("task");
-  const S = { view: store.get("view", "dfte"), editing: null, allProjects: false, tip: null, focusTask: linkedTask, month: null, agent: null, cat: null, showAll: false, mode: store.get("mode", "color") };
+  const S = { view: store.get("view", "dfte"), editing: null, allProjects: false, allRoles: false, tip: null, focusTask: linkedTask, month: null, agent: null, cat: null, showAll: false, mode: store.get("mode", "color") };
   let data = null, AG = {}, enabled = {};
 
   const pickAgent = (id) => { if (!enabled[id]) return; S.agent = S.agent === id ? null : id; S.showAll = false; render(); };
