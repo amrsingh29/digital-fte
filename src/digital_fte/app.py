@@ -11,7 +11,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 
-from . import ai, config, db, jobs, refine, share
+from . import ai, applog, config, db, jobs, refine, share
 from .collectors import COLLECTORS
 from .estimate import CATEGORIES_ROLE, PURPOSES
 from .scan import scan
@@ -20,8 +20,18 @@ HERE = Path(__file__).parent
 _scan_lock = threading.Lock()
 
 
+def _logged(fn, what: str):
+    """Run fn; record any crash in app.log instead of losing it in a background thread."""
+    def run():
+        try:
+            fn()
+        except Exception:
+            applog.get().exception("%s crashed", what)
+    return run
+
+
 def _ai_in_background() -> None:
-    threading.Thread(target=lambda: ai.run(config.DB_PATH, config.load()), daemon=True).start()
+    threading.Thread(target=_logged(lambda: ai.run(config.DB_PATH, config.load()), "AI run"), daemon=True).start()
 
 
 def _scan_quietly() -> None:
@@ -34,7 +44,8 @@ def _scan_quietly() -> None:
 @asynccontextmanager
 async def lifespan(_app):
     # Fresh numbers on every start without blocking the first page load.
-    threading.Thread(target=_scan_quietly, daemon=True).start()
+    applog.get().info("dashboard started")
+    threading.Thread(target=_logged(_scan_quietly, "startup scan"), daemon=True).start()
     yield
 
 

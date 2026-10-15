@@ -102,11 +102,24 @@ added the [alias](setup-mac.md#9-optional-a-shorter-command).
 
 ## Troubleshooting
 
+**Start with the log:** `~/.digital-fte/app.log` records every scan (per agent),
+every AI run (start, end, and each failure with its reason), and any unexpected
+error with its details, from both the dashboard and the daily job. It never
+contains prompt or reply text, file contents or keys, so it's safe to attach to
+a bug report. It rotates at 1 MB and keeps three old files. The daily job also
+writes its own short log to `~/.digital-fte/refresh.log`.
+
+```bash
+tail -50 ~/.digital-fte/app.log
+```
+
 | Problem | What to do |
 |---|---|
+| Banner says **"… was unreachable; will retry"** | The AI service couldn't be reached (offline, asleep, off VPN). The run stopped and the remaining tasks stay pending; the next run picks them up. Nothing to fix unless it keeps happening while you're online. |
 | An agent shows **not found** | Its history is somewhere else. Set its `path` in `config.toml`. |
 | **"No key found in …"** in Settings → AI estimates | Store the key with `security add-generic-password` ([setup step 6](setup-mac.md#6-choose-an-ai-service-optional-recommended)), check `key_keychain` matches the name you used, then reload the page after a minute. |
 | **"Set a model in config.toml"** | Fill in `model` for that service. |
+| **"N failed"** in the banner | Those tasks got a real error (e.g. a rejected request). They're retried on every run; `app.log` shows the reason for each. |
 | AI estimates fail with **HTTP 429** | The service is busy. The app waits and retries. For a shared quota, raise `pause_seconds`. |
 | AI estimates fail with **HTTP 403** | Check the key and `base_url`. Some company endpoints also need you to be on the company network or VPN. |
 | **"already running in another process"** | Another AI run is busy, usually the dashboard's. Nothing was changed; try again when it finishes (Settings → AI estimates shows progress). |

@@ -177,6 +177,10 @@ class AIError(Exception):
     pass
 
 
+class Unreachable(AIError):
+    """The service can't be reached at all (offline, DNS, VPN): not the task's fault."""
+
+
 # ---------- services and keys ----------
 
 _key_cache: dict[tuple, tuple[float, str | None]] = {}
@@ -274,7 +278,7 @@ def _openai(svc: dict, user: str, system: str, schema: dict) -> dict:
             if attempt < 2:
                 time.sleep(2 * (attempt + 1))
                 continue
-            raise AIError(f"connection failed: {e}") from None
+            raise Unreachable(f"connection failed: {e}") from None
     raise AIError("gave up after retries")
 
 
@@ -296,7 +300,7 @@ def _anthropic(svc: dict, user: str, system: str, schema: dict) -> dict:
     except anthropic.APIStatusError as e:
         raise AIError(f"HTTP {e.status_code}: {e.message}") from None
     except anthropic.APIConnectionError as e:
-        raise AIError(f"connection failed: {e}") from None
+        raise Unreachable(f"connection failed: {e}") from None
     if response.stop_reason == "refusal":
         raise AIError("the model declined this task")
     text = next((b.text for b in response.content if b.type == "text"), "")
@@ -320,7 +324,7 @@ def estimate_one(svc: dict, summary: str, roles: list[dict], examples: list[str]
 
 # ---------- running over tasks ----------
 
-progress = {"running": False, "done": 0, "total": 0, "errors": 0, "last_error": None, "service": None}
+progress = {"running": False, "done": 0, "total": 0, "errors": 0, "last_error": None, "service": None, "note": None}
 _lock = threading.Lock()
 
 
@@ -359,32 +363,53 @@ def run(db_path, cfg: dict, limit: int | None = None, redo_before: float | None 
 
 
 def _run(db_path, cfg: dict, name: str, svc: dict, limit: int | None, redo_before: float | None = None) -> dict:
+    from . import applog
+    log = applog.get()
+    unreachable = threading.Event()   # set on the first "can't reach the service": stop, retry next run
     try:
         con = sqlite3.connect(db_path)
         con.row_factory = sqlite3.Row
         todo = pending(con, name, svc["model"], limit or cfg["ai"].get("max_tasks_per_run", 400), redo_before)
-        progress.update(running=True, done=0, total=len(todo), errors=0, last_error=None, service=f"{name} · {svc['model']}")
+        progress.update(running=True, done=0, total=len(todo), errors=0, last_error=None, note=None,
+                        service=f"{name} · {svc['model']}")
+        if todo:
+            log.info("ai: %s · %s, %d tasks to estimate", name, svc["model"], len(todo))
         with ThreadPoolExecutor(max_workers=max(1, int(svc.get("parallel", 2)))) as pool:
             pause = float(svc.get("pause_seconds", 0))
 
             shown = examples(con, cfg)
 
             def one(task_id, summary):
+                if unreachable.is_set():
+                    return None                      # skipped: the service is down
                 mine = [x for tid, x in shown if tid != task_id][:N_EXAMPLES]
                 try:
                     return estimate_one(svc, summary, cfg["roles"], mine)
+                except Unreachable:
+                    unreachable.set()                # the other workers skip from here on
+                    raise
                 finally:
-                    time.sleep(pause)   # leave room for the person's own agents on a shared quota
+                    if not unreachable.is_set():
+                        time.sleep(pause)   # leave room for the person's own agents on a shared quota
 
             futures = {pool.submit(one, t["id"], t["summary"]): t for t in todo}
             for f in as_completed(futures):
                 t = futures[f]
                 try:
                     r, err = f.result(), None
+                except Unreachable as e:
+                    if not progress["note"]:
+                        log.warning("ai: %s unreachable (%s); stopping, the rest stay pending for the next run", name, e)
+                        progress["note"] = "unreachable"
+                    r = None
                 except Exception as e:  # keep going; the error is stored and retried next run
                     r, err = {}, str(e)[:300]
                     progress["errors"] += 1
                     progress["last_error"] = err
+                    log.warning("ai: task %s failed: %s", t["id"], err)
+                if r is None:          # not attempted, or the service was down: leave it pending
+                    progress["done"] += 1
+                    continue
                 con.execute("insert or replace into ai_estimates values (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                             (t["id"], name, svc["model"], t["n_events"], r.get("title"), r.get("category"),
                              r.get("h_low"), r.get("h"), r.get("h_high"), r.get("k"), r.get("reason"), err, time.time(),
@@ -392,8 +417,18 @@ def _run(db_path, cfg: dict, name: str, svc: dict, limit: int | None, redo_befor
                 con.commit()
                 progress["done"] += 1
         con.close()
-        return {"service": name, "model": svc["model"], "estimated": progress["done"] - progress["errors"],
-                "errors": progress["errors"], "last_error": progress["last_error"]}
+        out = {"service": name, "model": svc["model"], "estimated": progress["done"] - progress["errors"],
+               "errors": progress["errors"], "last_error": progress["last_error"]}
+        if unreachable.is_set():
+            out["estimated"] = None
+            out["unreachable"] = True
+            progress["note"] = f"{name} was unreachable at {time.strftime('%H:%M')}; will retry"
+        if todo:
+            log.info("ai: done %s", out)
+        return out
+    except Exception:
+        log.exception("ai: run crashed")
+        raise
     finally:
         progress["running"] = False
         _lock.release()

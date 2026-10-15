@@ -439,9 +439,10 @@
     if (p.running) return `${p.service}: estimating task ${p.done} of ${p.total}…${p.errors ? ` (${p.errors} failed)` : ""}`;
     if (!svc) return `Rules-based estimates · AI is off · last scan ${lastScan()}`;
     if (!svc.ready) return `Rules-based estimates · ${svc.name}: ${svc.status}`;
+    const note = p.note ? ` · ${p.note}` : "";
     const learned = Object.entries(data.ai.learned || {}).map(([c, f]) => `${c} ×${f}`).join(", ");
     return `${svc.name} · ${svc.model} estimated ${int(data.ai.estimated)} of ${int(data.tasks.length)} tasks` +
-      (data.ai.failed ? ` · ${data.ai.failed} failed` : "") + ` · ${data.ai.corrected} corrected by you` +
+      (data.ai.failed ? ` · ${data.ai.failed} failed` : "") + note + ` · ${data.ai.corrected} corrected by you` +
       (learned ? ` · learned: ${learned}` : "") +
       (data.ai.guiding && learnList().length ? ` · AI guided by ${data.ai.guiding} of your corrections` : "") + ` · last scan ${lastScan()}`;
   }

@@ -8,7 +8,7 @@ import traceback
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from . import config, db, estimate
+from . import applog, config, db, estimate
 from .collectors import COLLECTORS
 from .collectors.base import NO_PROJECT
 
@@ -73,4 +73,10 @@ def _scan(full: bool, only: str | None) -> list[AgentResult]:
     con.execute("insert or replace into meta values ('last_scan', ?)", (str(time.time()),))
     con.commit()
     con.close()
+    log = applog.get()
+    log.info("scan: " + ", ".join(f"{r.agent} {r.updated}/{r.sources} updated" if r.found else f"{r.agent} not found"
+                                  for r in results))
+    for r in results:
+        for err in r.errors[:5]:   # error type and message only: never session content
+            log.warning("scan: %s: %s", r.agent, err[:500])
     return results

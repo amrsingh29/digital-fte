@@ -50,7 +50,10 @@ def file_lock(name: str, wait: bool = True):
 
 
 def log(msg: str) -> None:
+    """To refresh.log (the job's own output) and app.log."""
     print(f"{datetime.now():%Y-%m-%d %H:%M:%S}  {msg}", flush=True)
+    from . import applog
+    applog.get().info("daily refresh: %s", msg)
 
 
 def last_scan() -> float | None:
