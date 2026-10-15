@@ -92,7 +92,7 @@ def main() -> None:
 
     shr = sub.add_parser("share", help="write the totals-only summary page")
     shr.add_argument("--out", default=str(Path("~/.digital-fte/summary.html").expanduser()), help="output file")
-    shr.add_argument("--name", help="your name for the page title, e.g. Amrendra")
+    shr.add_argument("--name", help="your name for the page title, e.g. Sam")
     shr.add_argument("--fragment", action="store_true", help="content only, no html/head/body (for publishing)")
 
     args = parser.parse_args()

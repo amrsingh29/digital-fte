@@ -175,6 +175,8 @@ See the app with three months of made-up tasks, without touching your own data:
 Then open **http://127.0.0.1:8766**. It never scans your history and never calls
 an AI service. The README screenshots come from it.
 
+**Licence:** [MIT](LICENSE).
+
 **Adding an agent:** write a reader in `collectors/` that turns its history into
 sessions of prompts, replies and actions (see `collectors/base.py`), and add one
 line to `collectors/__init__.py`. The rest of the app works with it unchanged.

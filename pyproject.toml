@@ -3,6 +3,7 @@ name = "digital-fte"
 version = "0.1.0"
 description = "Local dashboard that turns coding-agent history into Digital FTE numbers"
 requires-python = ">=3.12"
+license = {text = "MIT"}
 dependencies = [
   "fastapi==0.115.6",
   "uvicorn==0.34.0",
