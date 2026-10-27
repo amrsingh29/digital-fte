@@ -125,7 +125,7 @@ set its `base_url`, `model` and `key_keychain` under `[ai.cortex]`, or add a new
 .venv/bin/fte serve
 ```
 
-Open **http://127.0.0.1:8765** in your browser. To see what the app looks like
+Open **http://127.0.0.1:8770** in your browser. To see what the app looks like
 before your own data is in, see [Try it with sample data](../README.md#try-it-with-sample-data). The first time, the AI step
 estimates all your existing tasks in the background; the banner shows its
 progress.

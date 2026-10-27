@@ -80,7 +80,7 @@ python3 -m venv .venv
 .venv/bin/fte serve
 ```
 
-Then open **http://127.0.0.1:8765**. The repository is private; ask the owner
+Then open **http://127.0.0.1:8770**. The repository is private; ask the owner
 for access first.
 
 **[Full setup guide →](docs/setup-mac.md)** checking your costs, choosing an AI

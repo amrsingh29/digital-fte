@@ -86,7 +86,7 @@ first guess until they're re-checked.
 
 | Command | What it does |
 |---|---|
-| `fte serve` | Start the dashboard at http://127.0.0.1:8765 (rescans on start) |
+| `fte serve` | Start the dashboard at http://127.0.0.1:8770 (rescans on start) |
 | `fte scan` | Read new agent history. `--full` re-reads everything; `--agent cursor` reads one agent |
 | `fte estimate` | Recompute tasks and print DFTE per month (rules vs final) |
 | `fte estimate --ai` | The same, and send tasks the AI hasn't seen yet. `--limit N` for a few |
@@ -123,7 +123,7 @@ tail -50 ~/.digital-fte/app.log
 | AI estimates fail with **HTTP 429** | The service is busy. The app waits and retries. For a shared quota, raise `pause_seconds`. |
 | AI estimates fail with **HTTP 403** | Check the key and `base_url`. Some company endpoints also need you to be on the company network or VPN. |
 | **"already running in another process"** | Another AI run is busy, usually the dashboard's. Nothing was changed; try again when it finishes (Settings → AI estimates shows progress). |
-| **Address already in use** when starting | Another `fte serve` is running. Use it, or start on another port: `fte serve --port 8766`. |
+| **Address already in use** when starting | Another `fte serve` is running. Use it, or start on another port: `fte serve --port 8771`. |
 | The daily refresh doesn't run | Run `fte schedule status`. If you moved the project folder, run `fte schedule install` again. The log is `~/.digital-fte/refresh.log`. |
 | The virtual team says many tasks are a **first guess** | The AI hasn't reviewed them yet. Wait for the next refresh, or click Rescan. |
 | A new role isn't used for older tasks | Run `fte estimate --recheck-roles`. |

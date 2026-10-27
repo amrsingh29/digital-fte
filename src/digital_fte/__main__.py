@@ -67,7 +67,7 @@ def main() -> None:
     sub = parser.add_subparsers(dest="cmd", required=True)
 
     serve = sub.add_parser("serve", help="run the dashboard on localhost")
-    serve.add_argument("--port", type=int, default=8765)
+    serve.add_argument("--port", type=int, default=8770)
     serve.add_argument("--reload", action="store_true")
 
     scan = sub.add_parser("scan", help="read agent history into the local database")
