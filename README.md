@@ -134,6 +134,7 @@ the task editor, how the app learns from you, and a 10-minute weekly routine.
 | [How it works](docs/how-it-works.md) | The calculation, purposes, the virtual team, learning, guard rails, limits |
 | [Reviewing and correcting tasks](docs/reviewing-tasks.md) | The task editor, sizes, roles, filters, and a weekly routine |
 | [Configuration](docs/configuration.md) | Every setting, the role catalog and costs, commands, troubleshooting |
+| [Changelog](CHANGELOG.md) | What changed in each release |
 
 ---
 
