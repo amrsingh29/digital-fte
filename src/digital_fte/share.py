@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import calendar
 import math
+import sqlite3
 from datetime import datetime
 from html import escape
 
@@ -44,15 +45,25 @@ def team_of(tasks: list[dict], cfg: dict) -> dict:
     return {"roles": roles, "value": value, "per_person": value / dfte if dfte else default}
 
 
-def build(cfg: dict | None = None) -> dict:
-    cfg = cfg or config.load()
-    con = db.connect(config.DB_PATH)
+def visible_tasks(cfg: dict, con: sqlite3.Connection | None = None) -> tuple[list[dict], dict, list[str]]:
+    """The tasks that count: finished, from enabled agents, in allowed folders. Pass `con` to read
+    through your own (for example read-only) connection; otherwise the app database is opened."""
+    own = con is None
+    if own:
+        con = db.connect(config.DB_PATH)
     try:
         tasks, ai_summary = refine.finalize(con, cfg)
     finally:
-        con.close()
+        if own:
+            con.close()
     enabled = [a for a, c in cfg["agents"].items() if c.get("enabled") and a in COLLECTORS]
     tasks = [t for t in tasks if t["agent"] in enabled and config.path_allowed(t["cwd"], cfg)]
+    return tasks, ai_summary, enabled
+
+
+def build(cfg: dict | None = None, con: sqlite3.Connection | None = None) -> dict:
+    cfg = cfg or config.load()
+    tasks, ai_summary, enabled = visible_tasks(cfg, con)
     hpf = cfg["dfte"]["hours_per_fte_month"]
     monthly_cost = sum(cfg["agents"][a].get("cost_per_month", 0) for a in enabled)
     now = datetime.now()

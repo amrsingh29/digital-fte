@@ -119,6 +119,16 @@ about = "explains, teaches and looks things up, like a senior colleague would"
 fallback = ["research", "learning"]
 """
 
+MCP_DEFAULT = """\
+# What `fte mcp` may show your own agents. Totals are on; the rest stay off until you turn them on.
+# See docs/mcp-server.md.
+[mcp.profiles.me]
+totals = true
+task_details = false      # turn on when you want your agent to see them
+names = false
+content = false
+"""
+
 DEFAULT = """\
 # digital-fte settings. Edit freely; the dashboard's Agents switches update `enabled`.
 
@@ -169,7 +179,7 @@ enabled = true
 path = "~/.cline/data/sessions"
 cost_per_month = 0
 
-""" + PURPOSES_DEFAULT + "\n" + AI_DEFAULT + "\n" + ROLES_DEFAULT
+""" + PURPOSES_DEFAULT + "\n" + AI_DEFAULT + "\n" + ROLES_DEFAULT + "\n" + MCP_DEFAULT
 
 
 def _block(name: str) -> str:
@@ -206,6 +216,8 @@ def ensure() -> None:
         text = re.sub(r"^(max_tasks_per_run[^\n]*\n)", lambda m: m.group(1) + line, text, count=1, flags=re.M)
     if not re.search(r"^\[\[roles\]\]", text, re.M):
         text = text.rstrip() + "\n\n" + ROLES_DEFAULT
+    if not re.search(r"^\[mcp\.profiles\.me\]", text, re.M):
+        text = text.rstrip() + "\n\n" + MCP_DEFAULT
     if text != CONFIG_PATH.read_text():
         CONFIG_PATH.write_text(text)
 

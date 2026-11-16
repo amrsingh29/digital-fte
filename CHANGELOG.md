@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`fte mcp`:** a read-only MCP server so your own agents (Claude Code, opencode,
+  Goose) can ask about your Digital FTE, with three tools: `dfte_summary`,
+  `dfte_tasks` and `dfte_review_queue`. Four switches under `[mcp.profiles.me]` in
+  `config.toml` choose what they may see (`totals`, `task_details`, `names`,
+  `content`); only totals are on to begin with. `fte mcp --dry-run TOOL` shows what a
+  tool would return, and `~/.digital-fte/mcp-audit.log` records every question by
+  field name. See [the MCP server](docs/mcp-server.md).
+- **Data and privacy page:** what the app reads, keeps and sends, in four levels
+  ([docs/data-and-privacy.md](docs/data-and-privacy.md)).
+
 ## [0.1.1] - 2026-10-28
 
 ### Fixed
