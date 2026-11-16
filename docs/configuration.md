@@ -39,6 +39,7 @@ are appended to your file automatically, so you can see them.
 | `[ai.*]` | `model`, `base_url`, `key_keychain`, `key_env` | per service | How to reach each AI service |
 | | `parallel`, `pause_seconds` | 1, 3 for Cortex | Pace of AI requests, to leave room for your own agents |
 | `[[roles]]` | `name`, `about`, `fallback`, `monthly_cost` | 10 roles | The virtual team's role catalog ([below](#roles-the-virtual-team)) |
+| `[mcp.profiles.me]` | `totals`, `task_details`, `names`, `content` | true, false, false, false | What `fte mcp` may show your own agents ([guide](mcp-server.md)) |
 | `[rates]` | 13 settings | | How evidence becomes hours (lines per hour, minutes per read, and so on) |
 
 **Use one currency for every cost** (agents, `human_cost_per_month`, roles).
@@ -94,6 +95,7 @@ first guess until they're re-checked.
 | `fte refresh` | Scan and AI estimates together: what the daily job runs |
 | `fte schedule install --at HH:MM` | Turn on the daily refresh. Also `remove` and `status` |
 | `fte share --name NAME` | Write the summary page to `~/.digital-fte/summary.html` |
+| `fte mcp` | Start the read-only MCP server for your own agents ([guide](mcp-server.md)). `--dry-run TOOL` prints what a tool would return instead |
 
 Run them as `.venv/bin/fte …` from the project folder, or as `fte …` if you
 added the [alias](setup-mac.md#9-optional-a-shorter-command).

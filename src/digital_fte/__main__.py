@@ -62,6 +62,24 @@ def _estimate(args) -> None:
         print(f"{m}  {c:5}  {rules / hpf:10.2f}  {final / hpf:10.2f}  ({lo / hpf:.2f}-{hi / hpf:.2f})")
 
 
+def _mcp(args) -> None:
+    import json
+    import sys
+
+    from . import config
+
+    config.ensure()          # makes sure the [mcp.profiles.me] switches are in config.toml where you can see them
+    if args.dry_run:
+        from . import mcp_policy, mcp_tools
+
+        print(f"sharing on: {', '.join(mcp_policy.load().on) or 'nothing'}", file=sys.stderr)
+        filters = {k: getattr(args, k) for k in ("month", "agent", "category", "purpose", "limit")}
+        print(json.dumps(mcp_tools.run(args.dry_run, filters), indent=2))
+        return
+    from .mcp_server import main as serve_mcp
+    serve_mcp()
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(prog="fte", description="Digital FTE dashboard")
     sub = parser.add_subparsers(dest="cmd", required=True)
@@ -95,6 +113,13 @@ def main() -> None:
     shr.add_argument("--name", help="your name for the page title, e.g. Sam")
     shr.add_argument("--fragment", action="store_true", help="content only, no html/head/body (for publishing)")
 
+    mcp = sub.add_parser("mcp", help="read-only MCP server (stdio) for your own agents")
+    mcp.add_argument("--dry-run", metavar="TOOL", choices=["dfte_summary", "dfte_tasks", "dfte_review_queue"],
+                     help="print what this tool would return right now, then exit (starts no server)")
+    for opt in ("month", "agent", "category", "purpose"):
+        mcp.add_argument(f"--{opt}", help="filter for --dry-run")
+    mcp.add_argument("--limit", type=int, help="row limit for --dry-run")
+
     args = parser.parse_args()
     if args.cmd == "serve":
         # Bound to 127.0.0.1 only: the dashboard is never reachable from the network.
@@ -110,6 +135,8 @@ def main() -> None:
         html = share.render(summary, args.name) if args.fragment else share.page(summary, args.name)
         Path(args.out).expanduser().write_text(html)
         print(f"wrote {args.out}")
+    elif args.cmd == "mcp":
+        _mcp(args)
     elif args.cmd == "refresh":
         from . import jobs
         jobs.refresh(args.if_older_than)

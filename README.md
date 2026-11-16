@@ -115,6 +115,8 @@ the task editor, how the app learns from you, and a 10-minute weekly routine.
 
 ## Privacy: what stays on your Mac
 
+The full list of what is read, kept and sent is in **[Data and privacy →](docs/data-and-privacy.md)**.
+
 | | Where it goes |
 |---|---|
 | Agent history files | Read only, never changed or moved |
@@ -134,6 +136,8 @@ the task editor, how the app learns from you, and a 10-minute weekly routine.
 | [How it works](docs/how-it-works.md) | The calculation, purposes, the virtual team, learning, guard rails, limits |
 | [Reviewing and correcting tasks](docs/reviewing-tasks.md) | The task editor, sizes, roles, filters, and a weekly routine |
 | [Configuration](docs/configuration.md) | Every setting, the role catalog and costs, commands, troubleshooting |
+| [Data and privacy](docs/data-and-privacy.md) | What it reads, keeps and sends, the four levels of data, and your controls |
+| [The MCP server](docs/mcp-server.md) | Let your own agents ask about your DFTE, with switches for what they may see |
 | [Changelog](CHANGELOG.md) | What changed in each release |
 
 ---
