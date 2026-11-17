@@ -7,8 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-11-17
+
 ### Added
 
+- **Hermes and omp:** read the sessions of two more coding agents, Hermes (`~/.hermes/state.db`)
+  and omp (`~/.omp/agent/sessions`). Both are on by default, with no monthly cost.
 - **`fte mcp`:** a read-only MCP server so your own agents (Claude Code, opencode,
   Goose) can ask about your Digital FTE, with three tools: `dfte_summary`,
   `dfte_tasks` and `dfte_review_queue`. Four switches under `[mcp.profiles.me]` in
@@ -18,6 +22,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   field name. See [the MCP server](docs/mcp-server.md).
 - **Data and privacy page:** what the app reads, keeps and sends, in four levels
   ([docs/data-and-privacy.md](docs/data-and-privacy.md)).
+
+### Changed
+
+- **AI is off by default.** A new install uses rules only and sends nothing to an AI service
+  until you choose one in `config.toml` or the dashboard's Settings. Existing config files are
+  not changed; an older file that names a provider keeps it.
+- The internal endpoint in the default config is replaced with a placeholder.
 
 ## [0.1.1] - 2026-10-28
 
@@ -45,6 +56,7 @@ First release.
 - Totals-only summary page to share; troubleshooting log (`app.log`).
 - MIT licence.
 
-[Unreleased]: https://github.com/amrsingh29/digital-fte/compare/v0.1.1...HEAD
+[Unreleased]: https://github.com/amrsingh29/digital-fte/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/amrsingh29/digital-fte/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/amrsingh29/digital-fte/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/amrsingh29/digital-fte/releases/tag/v0.1.0
