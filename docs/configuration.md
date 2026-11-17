@@ -33,7 +33,7 @@ are appended to your file automatically, so you can see them.
 | | `cost_per_month` | per agent | Its monthly cost |
 | `[purposes]` | `learning_weight` | 1.0 | How much general & learning counts (0 to 1) |
 | | `admin_weight` | 1.0 | How much setup & admin counts (0 to 1) |
-| `[ai]` | `use` | cortex | Active AI service: cortex, claude, openai, gemini, local or off (also in the dashboard's Settings) |
+| `[ai]` | `use` | off | Active AI service: claude, openai, gemini, local, cortex or off (also in the dashboard's Settings). `off` = rules only, nothing sent |
 | | `auto` | true | Estimate new tasks automatically after each refresh |
 | | `learn_from` | roles, purpose, category | Which of your corrections are shown to the AI as examples. `[]` = none. Hours are never sent |
 | `[ai.*]` | `model`, `base_url`, `key_keychain`, `key_env` | per service | How to reach each AI service |

@@ -4,6 +4,8 @@ from .base import Collector
 from .claude_code import ClaudeCode
 from .cline import Cline
 from .cursor import Cursor
+from .hermes import Hermes
+from .omp import Omp
 from .opencode import Opencode
 
-COLLECTORS: dict[str, Collector] = {c.id: c for c in (ClaudeCode(), Opencode(), Cursor(), Cline())}
+COLLECTORS: dict[str, Collector] = {c.id: c for c in (ClaudeCode(), Opencode(), Cursor(), Cline(), Omp(), Hermes())}

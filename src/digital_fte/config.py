@@ -28,8 +28,8 @@ AI_DEFAULT = """\
 # here: each service reads its key from the macOS Keychain (key_keychain = the
 # Keychain service name) or an environment variable (key_env).
 [ai]
-use = "cortex"
-auto = true                    # estimate new tasks automatically after each scan
+use = "off"
+auto = true                   # estimate new tasks automatically after each scan
 max_tasks_per_run = 400
 # Which of your corrections the AI learns from: recent ones are shown to it as
 # examples of how you classify work. Remove an item to stop; [] = no examples.
@@ -37,7 +37,7 @@ learn_from = ["roles", "purpose", "category"]
 
 [ai.cortex]
 api = "openai"                 # OpenAI-compatible chat completions
-base_url = "https://cortex.helixops.ai/v1"
+base_url = "https://your-endpoint.example.com/v1"   # your company's OpenAI-compatible endpoint
 model = "cortex-fast"
 key_keychain = "cortex-api-key"
 parallel = 1                   # Cortex allows one request at a time per person
@@ -179,6 +179,16 @@ enabled = true
 path = "~/.cline/data/sessions"
 cost_per_month = 0
 
+[agents.omp]
+enabled = true
+path = "~/.omp/agent/sessions"
+cost_per_month = 0
+
+[agents.hermes]
+enabled = true
+path = "~/.hermes/state.db"
+cost_per_month = 0
+
 """ + PURPOSES_DEFAULT + "\n" + AI_DEFAULT + "\n" + ROLES_DEFAULT + "\n" + MCP_DEFAULT
 
 
@@ -209,8 +219,10 @@ def ensure() -> None:
     if not ai:
         text = text.rstrip() + "\n\n" + AI_DEFAULT
     elif not re.search(r"^use\s*=", ai.group(0), re.M):
-        # Phase 3 had one [ai] table; replace it with the per-service layout.
-        text = text[: ai.start()] + AI_DEFAULT + text[ai.end():]
+        # Phase 3 had one [ai] table; replace it with the per-service layout, keeping the provider it chose.
+        old = re.search(r'^provider\s*=\s*"([^"]+)"', ai.group(0), re.M)
+        new = re.sub(r'^use = "off"', f'use = "{old.group(1)}"', AI_DEFAULT, count=1, flags=re.M) if old else AI_DEFAULT
+        text = text[: ai.start()] + new + text[ai.end():]
     elif not re.search(r"^learn_from\s*=", ai.group(0), re.M):
         line = re.search(r"^# Which of your corrections.*?^learn_from[^\n]*\n", AI_DEFAULT, re.M | re.S).group(0)
         text = re.sub(r"^(max_tasks_per_run[^\n]*\n)", lambda m: m.group(1) + line, text, count=1, flags=re.M)

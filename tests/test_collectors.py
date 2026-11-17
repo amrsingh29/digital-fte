@@ -119,6 +119,79 @@ def test_cline(tmp_path):
     assert s.project == "cmdb" and s.title == "Look up a CI"
 
 
+def test_omp(tmp_path):
+    folder = tmp_path / "-Users-me-Developer-app"
+    folder.mkdir()
+    head = [
+        {"type": "session", "version": 3, "id": "s1", "timestamp": "2026-10-01T10:00:00Z", "cwd": H + "/Developer/app"},
+        {"type": "model_change", "model": "cortex/cortex-max"},
+        {"type": "message", "timestamp": "2026-10-01T10:00:01Z", "message": {
+            "role": "user", "content": [{"type": "text", "text": "Add a login page"}]}},
+        # one response with a text block and an edit; usage repeated on a second line of the same response
+        {"type": "message", "message": {"role": "assistant", "timestamp": 1790000005000, "model": "cortex-max",
+            "responseId": "r1", "usage": {"input": 10, "output": 50, "cacheRead": 1000},
+            "content": [{"type": "text", "text": "Sure, writing it now."}]}},
+        {"type": "message", "message": {"role": "assistant", "timestamp": 1790000006000,
+            "responseId": "r1", "usage": {"input": 10, "output": 50, "cacheRead": 1000},
+            "content": [{"type": "toolCall", "name": "edit", "arguments": {
+                "i": "Adding form", "input": "[" + H + "/Developer/app/login.py#AC07]\nPUT 3.=3:\n+a\n+b\n-c"}}]}},
+        {"type": "message", "message": {"role": "assistant", "timestamp": 1790000007000,
+            "content": [{"type": "toolCall", "name": "write", "arguments": {"path": "xd://mcp__eca_about", "content": "{}"}}]}},
+        {"type": "message", "message": {"role": "assistant", "timestamp": 1790000008000,
+            "content": [{"type": "toolCall", "name": "bash", "arguments": {"command": "ls"}}]}},
+        {"type": "title_change", "title": "Login page"},
+    ]
+    (folder / "s1.jsonl").write_text("\n".join(json.dumps(x) for x in head))
+    (folder / ".s1.jsonl.lock.os").write_text("lock")
+
+    sessions = {s.native_id: s for s in load_all("omp", tmp_path)}
+    assert set(sessions) == {"s1"}                        # the dot-file lock is skipped
+    s = sessions["s1"]
+    assert [e.kind for e in s.events] == ["prompt", "reply", "action", "action", "action"]
+    assert s.title == "Login page" and s.model == "cortex-max" and s.project == "app"
+    assert sum(e.tokens_out for e in s.events) == 50      # usage counted once per response
+    edit = s.events[2]
+    assert (edit.tool, edit.lines_added, edit.lines_removed) == ("edit", 2, 1)
+    assert edit.target == H + "/Developer/app/login.py"
+    assert s.events[3].target is None                     # virtual xd:// path is not a file
+
+
+def test_hermes(tmp_path):
+    path = tmp_path / "state.db"
+    con = sqlite3.connect(path)
+    con.execute("create table sessions (id, parent_session_id, cwd, title, model, input_tokens, output_tokens, "
+                "cache_read_tokens, transcript_revision, message_count, last_activity_at)")
+    con.execute("create table messages (id integer primary key, session_id, role, content, tool_calls, timestamp, active)")
+    con.execute("insert into sessions values ('h1', null, ?, 'Fix login', 'cortex-max', 100, 30, 900, 0, 5, 1790000020)",
+                (H + "/Developer/app",))
+    calls = [{"id": "c1", "function": {"name": "patch", "arguments": json.dumps(
+                {"path": H + "/Developer/app/login.py", "old_string": "a", "new_string": "a\nb\nc"})}}]
+    wrapped = [{"id": "c2", "function": {"name": "tool_call", "arguments": json.dumps(
+                {"calls": [{"name": "terminal", "arguments": {"command": "pytest"}}]})}}]
+    rows = [
+        (1, "h1", "user", "Fix the login page", None, 1790000000, 1),
+        (2, "h1", "assistant", "Looking at it.", json.dumps(calls), 1790000005, 1),
+        (3, "h1", "tool", "ok", None, 1790000006, 1),
+        (4, "h1", "assistant", None, json.dumps(wrapped), 1790000010, 1),
+        (5, "h1", "assistant", "Done.", None, 1790000020, 1),
+        (6, "h1", "user", "old edit", None, 1790000030, 0),   # inactive rows are skipped
+    ]
+    con.executemany("insert into messages values (?,?,?,?,?,?,?)", rows)
+    con.commit()
+    con.close()
+
+    sessions = {s.native_id: s for s in load_all("hermes", path)}
+    s = sessions["h1"]
+    assert [e.kind for e in s.events] == ["prompt", "reply", "action", "action", "reply"]
+    assert s.model == "cortex-max" and s.project == "app" and s.title == "Fix login"
+    assert (sum(e.tokens_in for e in s.events), sum(e.tokens_out for e in s.events)) == (100, 30)
+    assert sum(e.cache_read for e in s.events) == 900     # totals split across the 3 assistant turns
+    patch = s.events[2]
+    assert (patch.tool, patch.lines_added, patch.lines_removed) == ("patch", 3, 1)
+    assert patch.target == H + "/Developer/app/login.py"
+    assert s.events[3].tool == "terminal" and s.events[3].target == "pytest"
+
+
 def test_project_names():
     od = H + "/Library/CloudStorage/OneDrive-Company/MyFolder/WorkSpace/Project"
     assert project_of(od + "/Singapore/Acme/deck.pptx") == "Acme (Singapore)"

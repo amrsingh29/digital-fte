@@ -10,6 +10,7 @@ from digital_fte import ai, config, db, estimate, refine
 from digital_fte.collectors.base import Event, Session
 
 CFG = tomllib.loads(config.DEFAULT)
+CFG["ai"]["use"] = "cortex"          # the AI tests need a provider on; the shipped default is off
 
 
 def setup(tmp_path, n_tasks=1):
