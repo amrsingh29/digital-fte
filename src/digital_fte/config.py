@@ -29,7 +29,7 @@ AI_DEFAULT = """\
 # Keychain service name) or an environment variable (key_env).
 [ai]
 use = "off"
-auto = true                    # estimate new tasks automatically after each scan
+auto = true                   # estimate new tasks automatically after each scan
 max_tasks_per_run = 400
 # Which of your corrections the AI learns from: recent ones are shown to it as
 # examples of how you classify work. Remove an item to stop; [] = no examples.
@@ -177,6 +177,16 @@ cost_per_month = 20
 [agents.cline]
 enabled = true
 path = "~/.cline/data/sessions"
+cost_per_month = 0
+
+[agents.omp]
+enabled = true
+path = "~/.omp/agent/sessions"
+cost_per_month = 0
+
+[agents.hermes]
+enabled = true
+path = "~/.hermes/state.db"
 cost_per_month = 0
 
 """ + PURPOSES_DEFAULT + "\n" + AI_DEFAULT + "\n" + ROLES_DEFAULT + "\n" + MCP_DEFAULT
